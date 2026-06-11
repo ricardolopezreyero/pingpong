@@ -421,6 +421,12 @@ let filtroJugador = null;
 let historialPage = 0;
 const HISTORIAL_PER_PAGE = 10;
 let _showAllPending = false;
+let _doneNewestFirst = (() => { try { return localStorage.getItem('pptorneo_doneOrder') !== 'oldest'; } catch { return true; } })();
+function toggleDoneOrder() {
+  _doneNewestFirst = !_doneNewestFirst;
+  try { localStorage.setItem('pptorneo_doneOrder', _doneNewestFirst ? 'newest' : 'oldest'); } catch {}
+  renderTab(currentTab);
+}
 
 function setFiltroJugador(nombre) {
   filtroJugador = (filtroJugador === nombre) ? null : nombre;
@@ -1778,8 +1784,14 @@ function renderMatchCards(containerId, partidos, tipo) {
   }
 
   if (done.length > 0) {
-    html += `<h3 style="margin-top:16px;margin-bottom:8px">Terminados (${done.length})</h3>`;
-    done.forEach(m => { html += renderDoneCard(m, tipo, matchNum(m, partidos)); });
+    const doneOrdered = _doneNewestFirst ? [...done].reverse() : done;
+    html += `<h3 style="margin-top:16px;margin-bottom:8px;display:flex;align-items:center;gap:10px">
+      Terminados (${done.length})
+      <button onclick="toggleDoneOrder()" style="font-size:11px;padding:2px 8px;border:1px solid #ccc;border-radius:5px;background:#fff;cursor:pointer;font-weight:normal;color:#444">
+        ${_doneNewestFirst ? '↓ Más reciente primero' : '↑ Más antiguo primero'}
+      </button>
+    </h3>`;
+    doneOrdered.forEach(m => { html += renderDoneCard(m, tipo, matchNum(m, partidos)); });
   }
 
   el.innerHTML = html;
