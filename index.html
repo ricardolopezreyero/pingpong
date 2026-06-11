@@ -385,6 +385,28 @@ tr.row-highlight td{background:rgba(0,0,0,0.06)!important}
   </div>
 </div>
 
+<div id="modalFinIndiv" class="modal">
+  <div class="modal-box" style="max-width:400px;text-align:center">
+    <div style="font-size:48px;line-height:1;margin-bottom:12px">🏆</div>
+    <h2 style="margin-bottom:6px">¡Individual Terminado!</h2>
+    <p id="finIndivMsg" style="color:#666;font-size:14px;margin:0 0 24px"></p>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button class="btn btn-primary" onclick="closeModal('modalFinIndiv');mostrarPreParejas()">🤝 Continuar a Dobles</button>
+      <button class="btn" onclick="terminarLigaSinDobles()">✅ Terminar la Liga aquí</button>
+    </div>
+  </div>
+</div>
+
+<div id="modalH2H" class="modal">
+  <div class="modal-box" style="max-width:580px;padding:0;overflow:hidden;display:flex;flex-direction:column;max-height:88vh">
+    <div id="h2hHeader" style="padding:18px 20px 14px;border-bottom:1px solid #eee;flex-shrink:0"></div>
+    <div id="h2hContent" style="overflow-y:auto;padding:16px 20px 12px;flex:1"></div>
+    <div style="padding:10px 20px 14px;border-top:1px solid #eee;flex-shrink:0">
+      <button class="btn" onclick="closeModal('modalH2H')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ===================== STATE =====================
 const STATE_KEY = 'pptorneo_state';
@@ -937,12 +959,28 @@ function checkPhaseComplete(partidos, tipo) {
       torneoState.fase = 'individuales_done';
       document.getElementById('tab3').disabled = false;
       updateFooterBtns();
+      saveState();
+      setTimeout(() => {
+        const standings = getStandings(partidos, torneoState.jugadores.filter(j => j.presente === true && !j.seFue));
+        const camp = standings[0];
+        document.getElementById('finIndivMsg').textContent = camp ? `Campeón: ${camp.nombre} · ${camp.pg} victorias` : '¡Torneo completado!';
+        document.getElementById('modalFinIndiv').classList.add('open');
+      }, 350);
     } else {
       torneoState.fase = 'done';
       updateFooterBtns();
+      saveState();
     }
-    saveState();
   }
+}
+
+function terminarLigaSinDobles() {
+  closeModal('modalFinIndiv');
+  torneoState.fase = 'done';
+  torneoState.sinDobles = true;
+  saveState();
+  updateFooterBtns();
+  renderAll();
 }
 
 // ===================== PLAYER RETIREMENT =====================
@@ -1400,6 +1438,7 @@ function renderPlayerList() {
           onkeydown="if(event.key==='Enter')guardarNombre(${idx});else if(event.key==='Escape')cancelarNombre(${idx})">
         <button class="btn btn-sm" id="editBtn_${idx}" onclick="editarNombre(${idx})" title="Editar nombre">✏</button>
         <button class="btn btn-sm" id="saveBtn_${idx}" style="display:none;background:#000;color:#fff" onclick="guardarNombre(${idx})" title="Guardar">✓</button>
+        <button class="btn btn-sm" onclick="openH2HModal('${j.nombre.replace(/'/g,"\\'")}');" title="Historial H2H">📊</button>
         <button class="btn btn-sm" onclick="toggleFotoInput(${idx})" title="Foto">📷</button>
         <button class="btn btn-sm btn-danger" onclick="removePlayer(${idx})">✕</button>
       </div>
@@ -1719,10 +1758,10 @@ function renderIndividuales() {
         </div>` : ''}
       </div>
       <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-        <button onclick="mostrarPreParejas()"
+        ${!torneoState.sinDobles ? `<button onclick="mostrarPreParejas()"
           style="padding:9px 18px;border:2px solid #fff;border-radius:6px;background:#fff;color:#000;cursor:pointer;font-size:14px;font-weight:700">
           🎉 GENERAR PAREJAS
-        </button>
+        </button>` : ''}
         <button onclick="exportarCanvas('individuales')"
           style="padding:9px 18px;border:2px solid #fff;border-radius:6px;background:transparent;color:#fff;cursor:pointer;font-size:14px;font-weight:700">
           📥 Descargar cuadro
@@ -1743,8 +1782,9 @@ function renderIndividuales() {
     const elo = getElo(j.nombre);
     return `<span class="${cls}" onclick="${j.seFue ? '' : `setFiltroJugador('${j.nombre}')`}" style="${j.seFue ? '' : 'cursor:pointer'}">
       ${avatarEl(j.nombre, j.foto)}
-      ${j.nombre} <span class="elo-badge elo-tip" data-tip="Rating histórico. Sube al vencer rivales mejor rankeados.">ELO:${elo}</span>
-      ${!j.seFue && torneoState.fase === 'individuales' ? `<button style="background:none;border:none;cursor:pointer;color:inherit;font-size:12px;margin-left:4px" onclick="event.stopPropagation();retirarJugador('${j.nombre}')" title="Retirar">⋯</button>` : ''}
+      ${j.nombre}
+      <button style="background:none;border:none;cursor:pointer;color:inherit;font-size:15px;margin-left:4px;opacity:.7;padding:0 3px" onclick="event.stopPropagation();openH2HModal('${j.nombre.replace(/'/g,"\\'")}');" title="Historial H2H">📊</button>
+      ${!j.seFue && torneoState.fase === 'individuales' ? `<button style="background:none;border:none;cursor:pointer;color:inherit;font-size:17px;margin-left:2px;padding:0 3px" onclick="event.stopPropagation();retirarJugador('${j.nombre}')" title="Retirar">⋯</button>` : ''}
     </span>`;
   }).join('');
 
@@ -2064,10 +2104,10 @@ function renderMiniTabla(containerId, standings) {
             <td style="width:24px;text-align:center;font-weight:bold;color:${i===0?'#D4AF37':i===1?'#A8A9AD':'#666'}">
               ${i===0?'🥇':i===1?'🥈':i+1}
             </td>
-            <td>
+            <td onclick="openH2HModal('${s.nombre.replace(/'/g,"\\'")}');" style="cursor:pointer">
               <div style="display:flex;align-items:center;gap:5px">
                 ${avatarEl(s.nombre, getPlayerData(s.nombre).foto)}
-                <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px">${s.nombre}</span>
+                <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px">${s.nombre}</span>
               </div>
             </td>
             <td style="text-align:center">${s.pg}</td>
@@ -2093,6 +2133,19 @@ function renderParejas() {
         ${torneoState.fase === 'individuales_done' ? '<button class="btn btn-primary" onclick="mostrarPreParejas()">🎉 Generar Parejas</button>' : ''}
       </div>
     `;
+    return;
+  }
+
+  if (torneoState.sinDobles) {
+    const st = getStandings(torneoState.partidos, torneoState.jugadores.filter(j => j.presente === true && !j.seFue));
+    const camp = st[0];
+    container.innerHTML = `<div class="champion-banner" style="margin:0">
+      <div style="font-size:36px;margin-bottom:8px">🏆</div>
+      <div style="font-size:20px;font-weight:900">${camp ? camp.nombre : '—'}</div>
+      <div style="font-size:13px;color:#aaa;margin-top:4px">Campeón Individual</div>
+      <div style="margin-top:14px;font-size:13px;opacity:.7">Liga terminada sin fase de dobles</div>
+      <button onclick="mostrarPreParejas()" style="margin-top:16px;padding:8px 16px;border:2px solid #fff;border-radius:6px;background:transparent;color:#fff;cursor:pointer;font-size:13px;font-weight:700">Agregar Dobles igualmente</button>
+    </div>`;
     return;
   }
 
@@ -2281,9 +2334,10 @@ function renderFullMatrix(containerId, partidos, jugadores, tipo) {
 
             return `<tr style="${ri === 0 ? 'border:3px solid #000;font-weight:bold' : ''}">
               <td>${ri+1}</td>
-              <td style="display:flex;align-items:center;gap:6px;min-width:120px">
+              <td style="display:flex;align-items:center;gap:6px;min-width:120px;cursor:pointer"
+                onclick="openH2HModal('${s.nombre.replace(/'/g,"\\'")}')">
                 ${avatarEl(s.nombre, getPlayerData(s.nombre).foto)}
-                ${s.nombre}
+                <span style="text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px">${s.nombre}</span>
               </td>
               ${cells}
               <td>${s.pj}</td><td>${s.pg}</td><td>${s.pp}</td>
@@ -2795,9 +2849,9 @@ function openEloModal() {
         <thead><tr><th>#</th><th>Jugador</th><th>ELO</th><th>PJ</th><th>PG</th><th>Racha</th></tr></thead>
         <tbody>
           ${players.map((p, i) => `
-            <tr>
+            <tr onclick="closeModal('modalElo');openH2HModal('${p.nombre.replace(/'/g,"\\'")}');" style="cursor:pointer" title="Ver historial de ${p.nombre}">
               <td>${i+1}</td>
-              <td>${avatarEl(p.nombre, getPlayerData(p.nombre).foto)} ${p.nombre}</td>
+              <td style="display:flex;align-items:center;gap:6px">${avatarEl(p.nombre, getPlayerData(p.nombre).foto)} <span style="text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px">${p.nombre}</span></td>
               <td><strong>${p.elo}</strong></td>
               <td>${p.pj}</td>
               <td>${p.pg}</td>
@@ -2821,6 +2875,117 @@ function openConfirmModal(title, msg, onYes) {
 
 function closeModal(id) {
   document.getElementById(id).classList.remove('open');
+}
+
+// ===================== HEAD-TO-HEAD =====================
+function openH2HModal(nombre) {
+  renderH2HModal(nombre);
+  document.getElementById('modalH2H').classList.add('open');
+}
+
+function _getAllH2HMatches(nombre) {
+  const rivalMap = {};
+  ligasContainer.ligas.forEach(liga => {
+    const st = liga.id === ligasContainer.activeId ? torneoState : (liga.state || {});
+    function process(partidos) {
+      (partidos || []).forEach(p => {
+        if (p.estado !== 'jugado' && p.estado !== 'walkover') return;
+        const j1s = Array.isArray(p.jugador1) ? p.jugador1 : [p.jugador1];
+        const j2s = Array.isArray(p.jugador2) ? p.jugador2 : [p.jugador2];
+        const inJ1 = j1s.includes(nombre);
+        const inJ2 = j2s.includes(nombre);
+        if (!inJ1 && !inJ2) return;
+        const n1 = p.pareja1Nombre || j1s.join(' / ');
+        const n2 = p.pareja2Nombre || j2s.join(' / ');
+        const rival = inJ1 ? n2 : n1;
+        const ganArr = Array.isArray(p.ganador) ? p.ganador : [p.ganador];
+        const ganó = inJ1 ? j1s.some(g => ganArr.includes(g)) : j2s.some(g => ganArr.includes(g));
+        const sets = (p.juegos || []).map(g => inJ1 ? `${g.pts1}–${g.pts2}` : `${g.pts2}–${g.pts1}`);
+        if (!rivalMap[rival]) rivalMap[rival] = { wins: 0, losses: 0, matches: [] };
+        if (ganó) rivalMap[rival].wins++;
+        else rivalMap[rival].losses++;
+        rivalMap[rival].matches.push({ liga: liga.nombre, fecha: st.startDate, ganó, sets, duracion: p.duracion || 0, esWalkover: p.estado === 'walkover' });
+      });
+    }
+    process(st.partidos);
+    process(st.partidosParejas);
+  });
+  return rivalMap;
+}
+
+function renderH2HModal(nombre) {
+  const rivalMap = _getAllH2HMatches(nombre);
+  const rivals = Object.entries(rivalMap).sort((a, b) => (b[1].wins + b[1].losses) - (a[1].wins + a[1].losses));
+  const totalMatches = rivals.reduce((s, [, r]) => s + r.wins + r.losses, 0);
+  const totalWins = rivals.reduce((s, [, r]) => s + r.wins, 0);
+  const winRate = totalMatches > 0 ? Math.round(totalWins / totalMatches * 100) : 0;
+  const pData = getPlayerData(nombre);
+
+  document.getElementById('h2hHeader').innerHTML = `
+    <div style="display:flex;align-items:center;gap:14px">
+      ${avatarEl(nombre, pData.foto, 'lg')}
+      <div>
+        <div style="font-size:18px;font-weight:900;line-height:1.1">${nombre}</div>
+        <div style="font-size:12px;color:#888;margin-top:3px">ELO ${getElo(nombre)}</div>
+      </div>
+      <div style="margin-left:auto;text-align:right">
+        <div style="font-size:26px;font-weight:900;line-height:1">${totalWins}<span style="color:#ccc;font-weight:400"> / </span>${totalMatches}</div>
+        <div style="font-size:11px;color:#888;margin-top:2px">${winRate}% victorias · ${rivals.length} rival${rivals.length !== 1 ? 'es' : ''}</div>
+      </div>
+    </div>`;
+
+  if (rivals.length === 0) {
+    document.getElementById('h2hContent').innerHTML = '<p style="color:#aaa;text-align:center;padding:32px 0;font-size:14px">No hay partidos registrados aún.</p>';
+    return;
+  }
+
+  const rivalsHtml = rivals.map(([rival, data]) => {
+    const total = data.wins + data.losses;
+    const pct = total > 0 ? Math.round(data.wins / total * 100) : 0;
+    const rData = getPlayerData(rival);
+    const matchesHtml = [...data.matches].reverse().map(m => {
+      const setsStr = m.sets.length ? m.sets.join('&nbsp;&nbsp;') : '—';
+      const durStr = m.duracion > 0 ? `⏱&nbsp;${formatTime(m.duracion)}` : '';
+      const dateStr = m.fecha ? new Date(m.fecha).toLocaleDateString('es-MX', { month: 'short', day: 'numeric', year: '2-digit' }) : '';
+      const wo = m.esWalkover ? `<span style="font-size:9px;margin-left:3px;opacity:.7">W.O.</span>` : '';
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;border-top:1px solid #f0f0f0;font-size:12px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-weight:800;padding:2px 8px;border-radius:10px;font-size:11px;
+            background:${m.ganó ? '#dcfce7' : '#fee2e2'};color:${m.ganó ? '#15803d' : '#dc2626'}">${m.ganó ? 'W' : 'L'}${wo}</span>
+          <span style="font-family:monospace;color:#333;letter-spacing:.4px">${setsStr}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;color:#b0b0b0;font-size:11px">
+          <span>${m.liga}</span>
+          ${dateStr ? `<span>${dateStr}</span>` : ''}
+          ${durStr ? `<span>${durStr}</span>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+
+    return `<div style="border:1px solid #e8e8e8;border-radius:10px;margin-bottom:8px;overflow:hidden">
+      <div onclick="const b=this.nextElementSibling;b.style.display=b.style.display==='none'?'block':'none'"
+        style="display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;user-select:none"
+        onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
+        ${avatarEl(rival, rData.foto)}
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${rival}</div>
+          <div style="font-size:11px;color:#999;margin-top:1px">${data.wins}V · ${data.losses}D · ${total} partido${total > 1 ? 's' : ''}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;margin-right:6px">
+          <div style="font-size:20px;font-weight:900;color:${pct >= 50 ? '#16a34a' : '#dc2626'}">${pct}<span style="font-size:11px;font-weight:400">%</span></div>
+          <div style="width:60px;height:4px;background:#e8e8e8;border-radius:2px;margin-top:4px">
+            <div style="width:${pct}%;height:4px;background:${pct >= 50 ? '#16a34a' : '#dc2626'};border-radius:2px"></div>
+          </div>
+        </div>
+        <span style="color:#ccc;font-size:13px">▾</span>
+      </div>
+      <div style="display:none">${matchesHtml}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('h2hContent').innerHTML = `
+    <div style="font-size:11px;font-weight:700;color:#bbb;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">Historial por rival · toca para expandir</div>
+    ${rivalsHtml}`;
 }
 
 // Close modals on backdrop click
@@ -2972,17 +3137,15 @@ function deleteLiga(id) {
 }
 
 function continuarLiga() {
-  if (torneoState.fase === 'config') {
-    switchTab(1);
-    return;
-  }
-  switchTab(torneoState.fase === 'parejas' || torneoState.fase === 'done' ? 3 : 2);
+  if (torneoState.fase === 'config') { switchTab(1); return; }
+  if ((torneoState.fase === 'parejas' || torneoState.fase === 'done') && !torneoState.sinDobles) { switchTab(3); return; }
+  switchTab(2);
 }
 
 // ===================== FOOTER BUTTONS =====================
 function updateFooterBtns() {
   const indivDone = torneoState.fase === 'individuales_done' || torneoState.fase === 'done';
-  const parejasDone = torneoState.fase === 'done';
+  const parejasDone = torneoState.fase === 'done' && !torneoState.sinDobles;
   document.getElementById('btnDescIndiv').disabled = !indivDone;
   document.getElementById('btnPdfIndiv').disabled = !indivDone;
   document.getElementById('btnDescParejas').disabled = !parejasDone;
