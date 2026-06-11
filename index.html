@@ -1911,7 +1911,9 @@ function renderDoneCard(m, tipo, num) {
   const gn = m.pareja1Nombre ? (Array.isArray(m.ganador) ? m.pareja1Nombre : (m.ganador === m.jugador1 || (Array.isArray(m.jugador1) && m.jugador1.join('/') === m.ganador.join('/')) ? m.pareja1Nombre : m.pareja2Nombre)) : getName(m.ganador);
   // Mostrar puntos reales por juego: "11–7" para 1 juego, "11–7, 6–11, 11–9" para best-of
   const scoreStr = m.juegos.map(g => `${g.pts1}–${g.pts2}`).join(' · ');
-  const dur = m.duracion ? ` (${formatTime(m.duracion)})` : '';
+  const durTag = m.duracion
+    ? `<span style="display:inline-flex;align-items:center;gap:3px;background:#f0f0f0;border-radius:4px;padding:2px 6px;font-size:12px;font-family:monospace;color:#444;font-weight:600">⏱ ${formatTime(m.duracion)}</span>`
+    : '';
 
   return `
     <div class="card-done">
@@ -1920,7 +1922,7 @@ function renderDoneCard(m, tipo, num) {
         <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <strong style="color:#22C55E">${gn}</strong>
           <span style="color:#666;font-size:12px;font-family:monospace">${scoreStr}</span>
-          <span style="color:#aaa;font-size:11px">${dur}</span>
+          ${durTag}
           <button class="btn btn-sm" onclick="editarPartido('${m.id}','${tipo}')" title="Editar partido">✏ Editar</button>
         </span>
       </div>
@@ -2069,19 +2071,29 @@ function renderTabla() {
   const hasParejas = torneoState.partidosParejas && torneoState.partidosParejas.length > 0;
 
   let html = `
-    <div style="display:flex;gap:8px;margin-bottom:16px">
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
       <button class="btn btn-primary" id="tabTabIndiv" onclick="showTablaSection('indiv')">Individuales</button>
       <button class="btn" id="tabTabParejas" onclick="showTablaSection('parejas')">Parejas</button>
       <button class="btn" onclick="copiarTabla()">📋 Copiar tabla</button>
     </div>
     <div id="tablaIndiv"></div>
     <div id="tablaParejas" style="display:none"></div>
+    <div id="timeStatsSection" style="margin-top:24px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;cursor:pointer" onclick="toggleTimeStats()">
+        <h3 style="margin:0;font-size:15px">⏱ Estadísticas de tiempo</h3>
+        <span id="timeStatsChevron" style="color:#666;font-size:12px;transition:.2s">▼</span>
+      </div>
+      <div id="timeStatsBody">
+        <div id="timeStatsIndiv"></div>
+      </div>
+    </div>
   `;
   container.innerHTML = html;
 
   if (hasIndiv) {
-    const jugadores = torneoState.jugadores.map(j => j.nombre);
+    const jugadores = torneoState.jugadores.filter(j => j.presente === true && !j.seFue).map(j => j.nombre);
     renderFullMatrix('tablaIndiv', torneoState.partidos, jugadores, 'individuales');
+    renderTimeStats('timeStatsIndiv', torneoState.partidos, jugadores);
   } else {
     document.getElementById('tablaIndiv').innerHTML = '<p style="color:#666">No hay torneo iniciado.</p>';
   }
@@ -2090,6 +2102,13 @@ function renderTabla() {
     const parejasNames = torneoState.parejas.map(p => p.nombre);
     renderFullMatrix('tablaParejas', torneoState.partidosParejas, parejasNames, 'parejas');
   }
+}
+
+let _timeStatsOpen = true;
+function toggleTimeStats() {
+  _timeStatsOpen = !_timeStatsOpen;
+  document.getElementById('timeStatsBody').style.display = _timeStatsOpen ? 'block' : 'none';
+  document.getElementById('timeStatsChevron').textContent = _timeStatsOpen ? '▼' : '▶';
 }
 
 function showTablaSection(sec) {
@@ -2202,6 +2221,93 @@ function renderFullMatrix(containerId, partidos, jugadores, tipo) {
       el.querySelectorAll('.col-highlight').forEach(c => c.classList.remove('col-highlight'));
     });
   });
+}
+
+function renderTimeStats(containerId, partidos, jugadoresList) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+
+  // Build per-player time stats
+  const stats = {};
+  jugadoresList.forEach(n => { stats[n] = { total: 0, count: 0, fastest: Infinity, slowest: 0 }; });
+
+  partidos.forEach(p => {
+    if (p.estado !== 'terminado' || !p.duracion || p.duracion <= 0) return;
+    const players = p.pareja1Nombre
+      ? [p.pareja1Nombre, p.pareja2Nombre]
+      : [getName(p.jugador1), getName(p.jugador2)];
+    players.forEach(n => {
+      if (!stats[n]) return;
+      stats[n].total += p.duracion;
+      stats[n].count++;
+      if (p.duracion < stats[n].fastest) stats[n].fastest = p.duracion;
+      if (p.duracion > stats[n].slowest) stats[n].slowest = p.duracion;
+    });
+  });
+
+  const rows = jugadoresList
+    .filter(n => stats[n] && stats[n].count > 0)
+    .map(n => ({ nombre: n, ...stats[n], avg: Math.round(stats[n].total / stats[n].count) }))
+    .sort((a, b) => b.total - a.total);
+
+  if (rows.length === 0) {
+    el.innerHTML = '<p style="color:#888;font-size:13px;margin-top:8px">Sin partidos completados con tiempo registrado.</p>';
+    return;
+  }
+
+  const maxTotal = rows[0].total;
+  const globalFastest = rows.reduce((min, r) => r.fastest < min ? r.fastest : min, Infinity);
+  const globalSlowest = rows.reduce((max, r) => r.slowest > max ? r.slowest : max, 0);
+
+  el.innerHTML = `
+    <div style="overflow-x:auto;margin-top:4px">
+      <table style="font-size:13px;min-width:580px">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:8px 10px">#</th>
+            <th style="text-align:left;padding:8px 10px">Jugador</th>
+            <th class="elo-tip" data-tip="Suma total de todos los partidos jugados" style="padding:8px 10px">Total ⏱</th>
+            <th class="elo-tip" data-tip="Partidos con tiempo registrado" style="padding:8px 10px">PJ</th>
+            <th class="elo-tip" data-tip="Tiempo promedio por partido" style="padding:8px 10px">Promedio</th>
+            <th class="elo-tip" data-tip="Partido más rápido jugado" style="padding:8px 10px">Más rápido</th>
+            <th class="elo-tip" data-tip="Partido más largo jugado" style="padding:8px 10px">Más largo</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((r, i) => {
+            const barW = Math.round((r.total / maxTotal) * 100);
+            const isFastest = r.fastest === globalFastest;
+            const isSlowest = r.slowest === globalSlowest;
+            return `<tr>
+              <td style="padding:6px 10px;color:#999;font-weight:bold">${i+1}</td>
+              <td style="padding:6px 10px">
+                <div style="display:flex;align-items:center;gap:6px">
+                  ${avatarEl(r.nombre, getPlayerData(r.nombre).foto)}
+                  <span>${r.nombre}</span>
+                </div>
+              </td>
+              <td style="padding:6px 10px">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span style="font-family:monospace;font-weight:700;min-width:44px">${formatTime(r.total)}</span>
+                  <div style="flex:1;min-width:60px;max-width:120px;background:#eee;border-radius:3px;height:6px">
+                    <div style="width:${barW}%;background:#1d4ed8;border-radius:3px;height:6px"></div>
+                  </div>
+                </div>
+              </td>
+              <td style="padding:6px 10px;text-align:center;color:#666">${r.count}</td>
+              <td style="padding:6px 10px;text-align:center;font-family:monospace">${formatTime(r.avg)}</td>
+              <td style="padding:6px 10px;text-align:center;font-family:monospace;${isFastest ? 'color:#16A34A;font-weight:700' : 'color:#555'}">
+                ${r.fastest === Infinity ? '—' : formatTime(r.fastest)}${isFastest ? ' ⚡' : ''}
+              </td>
+              <td style="padding:6px 10px;text-align:center;font-family:monospace;${isSlowest ? 'color:#DC2626;font-weight:700' : 'color:#555'}">
+                ${formatTime(r.slowest)}${isSlowest ? ' 🐢' : ''}
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
 }
 
 function copiarTabla() {
