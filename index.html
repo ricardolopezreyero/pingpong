@@ -89,6 +89,8 @@ tr:hover td{background:#f9f9f9}
 .elo-tip{border-bottom:1px dotted #9CA3AF;cursor:help;position:relative}
 .elo-tip:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#111;color:#fff;font-size:11px;font-weight:normal;white-space:nowrap;padding:5px 9px;border-radius:5px;pointer-events:none;z-index:300;line-height:1.4}
 .elo-tip:hover::before{content:'';position:absolute;bottom:calc(100% + 1px);left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#111;pointer-events:none;z-index:300}
+thead .elo-tip:hover::after{top:calc(100% + 6px);bottom:auto}
+thead .elo-tip:hover::before{top:calc(100% + 1px);bottom:auto;border-top-color:transparent;border-bottom-color:#111}
 /* SERVE indicator */
 .serve-icon{display:inline-block;font-size:18px;animation:bounce .6s infinite alternate}
 @keyframes bounce{0%{transform:translateY(0)}100%{transform:translateY(-4px)}}
