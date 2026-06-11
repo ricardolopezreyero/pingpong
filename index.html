@@ -435,8 +435,19 @@ function ocultarPendientes() { _showAllPending = false; renderTab(currentTab); }
 function loadLigas() {
   try {
     const raw = localStorage.getItem(LIGAS_KEY);
-    if (raw) { ligasContainer = JSON.parse(raw); return; }
-  } catch {}
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Validate structure
+      if (parsed && Array.isArray(parsed.ligas) && parsed.ligas.length > 0) {
+        ligasContainer = parsed;
+        // Ensure activeId points to an existing liga
+        if (!ligasContainer.ligas.find(l => l.id === ligasContainer.activeId)) {
+          ligasContainer.activeId = ligasContainer.ligas[0].id;
+        }
+        return;
+      }
+    }
+  } catch(e) { console.warn('loadLigas parse error, rebuilding', e); }
   // Migration: wrap old pptorneo_state into first liga
   let migratedState = null;
   try { const s = localStorage.getItem(STATE_KEY); if (s) migratedState = JSON.parse(s); } catch {}
@@ -460,7 +471,9 @@ function loadState() {
   if (liga && liga.state) torneoState = liga.state;
 }
 function saveLiga() {
-  localStorage.setItem(LIGA_KEY, JSON.stringify(ligaData));
+  try { localStorage.setItem(LIGA_KEY, JSON.stringify(ligaData)); } catch(e) {
+    console.warn('saveLiga failed (storage full?)', e);
+  }
 }
 function loadLiga() {
   const s = localStorage.getItem(LIGA_KEY);
@@ -900,19 +913,21 @@ function walkoverPartido(matchId, tipo) {
   const n1 = Array.isArray(match.jugador1) ? match.jugador1.join('/') : match.jugador1;
   const n2 = Array.isArray(match.jugador2) ? match.jugador2.join('/') : match.jugador2;
 
-  openConfirmModal(`W.O. - ¿Quién gana?`, `¿Cuál es el ganador por W.O.?`,
-    () => {
-      match.estado = 'walkover';
-      match.ganador = match.jugador1;
-      if (!match.eloActualizado) {
-        const gn = Array.isArray(match.jugador1) ? match.jugador1.join('/') : match.jugador1;
-        const ln = Array.isArray(match.jugador2) ? match.jugador2.join('/') : match.jugador2;
-        if (tipo === 'individuales') updateEloMatch(gn, ln, K_WO);
-        match.eloActualizado = true;
-      }
-      saveState(); renderTab(currentTab);
-    }
-  );
+  const gana1 = confirm(`W.O. — ¿Quién gana?\n\nOK → gana ${n1}\nCancelar → gana ${n2}`);
+  const ganador = gana1 ? match.jugador1 : match.jugador2;
+  const perdedor = gana1 ? match.jugador2 : match.jugador1;
+  const gn = Array.isArray(ganador) ? ganador.join('/') : ganador;
+  const ln = Array.isArray(perdedor) ? perdedor.join('/') : perdedor;
+
+  match.estado = 'walkover';
+  match.ganador = ganador;
+  if (!match.eloActualizado) {
+    if (tipo === 'individuales') updateEloMatch(gn, ln, K_WO);
+    match.eloActualizado = true;
+  }
+  checkPhaseComplete(partidos, tipo);
+  saveState();
+  renderTab(currentTab);
 }
 
 function checkPhaseComplete(partidos, tipo) {
@@ -945,24 +960,34 @@ function doRetiro(nombre) {
   const jug = torneoState.jugadores.find(j => j.nombre === nombre);
   if (jug) jug.seFue = true;
 
-  torneoState.partidos.forEach(p => {
-    if (p.estado === 'jugado' || p.estado === 'walkover') return;
-    const involved = [p.jugador1, p.jugador2].includes(nombre);
-    if (!involved) return;
+  function procesarRetiro(partidos, tipo) {
+    partidos.forEach(p => {
+      if (p.estado === 'jugado' || p.estado === 'walkover') return;
+      const j1s = Array.isArray(p.jugador1) ? p.jugador1 : [p.jugador1];
+      const j2s = Array.isArray(p.jugador2) ? p.jugador2 : [p.jugador2];
+      const enJ1 = j1s.includes(nombre);
+      const enJ2 = j2s.includes(nombre);
+      if (!enJ1 && !enJ2) return;
 
-    if (p.estado === 'jugando') {
-      stopMatchTimer(p.id);
-      p.mesa = null;
-    }
+      if (p.estado === 'jugando' || p.estado === 'pausado') {
+        stopMatchTimer(p.id);
+        p.mesa = null;
+      }
 
-    p.estado = 'walkover';
-    const rival = p.jugador1 === nombre ? p.jugador2 : p.jugador1;
-    p.ganador = rival;
-    if (!p.eloActualizado) {
-      updateEloMatch(rival, nombre, K_WO);
-      p.eloActualizado = true;
-    }
-  });
+      p.estado = 'walkover';
+      p.ganador = enJ1 ? p.jugador2 : p.jugador1;
+      if (!p.eloActualizado && tipo === 'individuales') {
+        const rival = enJ1 ? p.jugador2 : p.jugador1;
+        updateEloMatch(rival, nombre, K_WO);
+        p.eloActualizado = true;
+      }
+    });
+  }
+
+  procesarRetiro(torneoState.partidos, 'individuales');
+  procesarRetiro(torneoState.partidosParejas, 'parejas');
+  checkPhaseComplete(torneoState.partidos, 'individuales');
+  checkPhaseComplete(torneoState.partidosParejas, 'parejas');
 
   saveState();
   renderTab(currentTab);
@@ -1316,8 +1341,8 @@ function guardarNombre(idx) {
   // 2. Update session history (campeonIndiv, campeonParejas)
   (ligaData.sesiones || []).forEach(s => {
     if (s.campeonIndiv === viejo) s.campeonIndiv = nuevo;
-    if (s.campeonParejas && s.campeonParejas.includes(viejo)) {
-      s.campeonParejas = s.campeonParejas.split(viejo).join(nuevo);
+    if (s.campeonParejas) {
+      s.campeonParejas = s.campeonParejas.split(' / ').map(n => n === viejo ? nuevo : n).join(' / ');
     }
   });
   saveLiga();
@@ -1332,13 +1357,13 @@ function guardarNombre(idx) {
   // 4. Update parejas jugadores arrays and names
   (torneoState.parejas || []).forEach(pa => {
     pa.jugadores = pa.jugadores.map(n => n === viejo ? nuevo : n);
-    pa.nombre = pa.nombre.split(viejo).join(nuevo);
+    pa.nombre = pa.nombre.split(' / ').map(n => n === viejo ? nuevo : n).join(' / ');
   });
   (torneoState.partidosParejas || []).forEach(p => {
     if (Array.isArray(p.jugador1)) p.jugador1 = p.jugador1.map(n => n === viejo ? nuevo : n);
     if (Array.isArray(p.jugador2)) p.jugador2 = p.jugador2.map(n => n === viejo ? nuevo : n);
-    if (p.pareja1Nombre) p.pareja1Nombre = p.pareja1Nombre.split(viejo).join(nuevo);
-    if (p.pareja2Nombre) p.pareja2Nombre = p.pareja2Nombre.split(viejo).join(nuevo);
+    if (p.pareja1Nombre) p.pareja1Nombre = p.pareja1Nombre.split(' / ').map(n => n === viejo ? nuevo : n).join(' / ');
+    if (p.pareja2Nombre) p.pareja2Nombre = p.pareja2Nombre.split(' / ').map(n => n === viejo ? nuevo : n).join(' / ');
     if (Array.isArray(p.ganador)) p.ganador = p.ganador.map(n => n === viejo ? nuevo : n);
     else if (p.ganador === viejo) p.ganador = nuevo;
   });
@@ -2305,7 +2330,7 @@ function renderTimeStats(containerId, partidos, jugadoresList) {
   jugadoresList.forEach(n => { stats[n] = { total: 0, count: 0, fastest: Infinity, slowest: 0 }; });
 
   partidos.forEach(p => {
-    if (p.estado !== 'terminado' || !p.duracion || p.duracion <= 0) return;
+    if (p.estado !== 'jugado' || !p.duracion || p.duracion <= 0) return;
     const players = p.pareja1Nombre
       ? [p.pareja1Nombre, p.pareja2Nombre]
       : [getName(p.jugador1), getName(p.jugador2)];
@@ -2912,6 +2937,8 @@ function switchLiga(id) {
   filtroJugador = null;
   ligasContainer.activeId = id;
   saveLigas();
+  // Reset to defaults before loading so no stale state leaks through
+  torneoState = { fase:'config', jugadores:[], mesas:3, formato:1, partidos:[], partidosParejas:[], parejas:[], activeTab:0, startDate:null };
   loadState();
   torneoState.jugadores.forEach(j => { if (j.presente === undefined) j.presente = true; });
   [...(torneoState.partidos || []), ...(torneoState.partidosParejas || [])].forEach(m => {
