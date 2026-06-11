@@ -1461,30 +1461,38 @@ function renderEstimador() {
   const paralelo = Math.min(mesas, Math.floor(n / 2));
   const slots = Math.ceil(totalPartidos / paralelo);
 
-  // Juegos promedio por formato: 1 → 1, MdJ3 → ~2.25, MdJ5 → ~3.6
   const formatos = [
-    { val: 1, label: '1 juego a 11',    sub: 'recomendado',  juegosProm: 1 },
-    { val: 3, label: 'Mejor de 3 juegos', sub: 'competencia',   juegosProm: 2.25 },
-    { val: 5, label: 'Mejor de 5 juegos', sub: 'profesional',  juegosProm: 3.6 }
+    { val: 1, label: '1 juego a 11',      sub: 'Rápido · Recomendado', emoji: '⚡', juegosProm: 1 },
+    { val: 3, label: 'Mejor de 3 juegos', sub: 'Competencia estándar',  emoji: '🏆', juegosProm: 2.25 },
+    { val: 5, label: 'Mejor de 5 juegos', sub: 'Profesional / torneo',  emoji: '🎖', juegosProm: 3.6 }
   ];
 
   const rows = formatos.map(f => {
     const minPorPartido = f.juegosProm * minJuego;
     const totalMin = Math.round(slots * minPorPartido + (slots - 1) * minEntre);
     const totalJuegos = Math.round(totalPartidos * f.juegosProm);
-    const isSelected = torneoState.formato === f.val;
+    const sel = torneoState.formato === f.val;
 
     return `
-      <div style="border:1px solid #eee;border-radius:8px;padding:12px 16px;margin-bottom:8px;
-                  background:${isSelected ? '#f9f9f9' : '#fff'};display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-        <div>
-          <span style="font-weight:bold;font-size:15px">${f.label}</span>
-          <span style="color:#999;font-size:11px;margin-left:6px">${f.sub}</span>
-          <div style="font-size:12px;color:#888;margin-top:3px">
-            ${totalJuegos} juegos · ${mesas} mesa${mesas>1?'s':''}
+      <div onclick="setFormato(${f.val});document.querySelector('input[name=formato][value=\\'${f.val}\\']').checked=true"
+        style="border:${sel ? '2.5px solid #000' : '1.5px solid #e0e0e0'};border-radius:10px;
+               padding:13px 16px;margin-bottom:8px;cursor:pointer;
+               background:${sel ? '#111' : '#fff'};
+               display:flex;justify-content:space-between;align-items:center;gap:8px;
+               transition:.15s;user-select:none">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font-size:22px;line-height:1">${f.emoji}</span>
+          <div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-weight:800;font-size:15px;color:${sel ? '#fff' : '#111'}">${f.label}</span>
+              ${sel ? '<span style="font-size:10px;background:#16A34A;color:#fff;border-radius:4px;padding:1px 6px;font-weight:700;letter-spacing:.5px">ACTIVO</span>' : ''}
+            </div>
+            <div style="font-size:12px;color:${sel ? '#9CA3AF' : '#888'};margin-top:2px">
+              ${f.sub} &nbsp;·&nbsp; ${totalJuegos} juegos · ${mesas} mesa${mesas>1?'s':''}
+            </div>
           </div>
         </div>
-        <div style="font-size:22px;font-weight:900;color:#000">${fmtDuracion(totalMin)}</div>
+        <div style="font-size:20px;font-weight:900;color:${sel ? '#FACC15' : '#000'};white-space:nowrap">${fmtDuracion(totalMin)}</div>
       </div>
     `;
   }).join('');
