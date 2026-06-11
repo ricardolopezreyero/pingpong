@@ -187,7 +187,10 @@ tr.row-highlight td{background:rgba(0,0,0,0.07)!important}
     <div id="g_id_onload"
       data-client_id="977641517971-23ouv33lu4s8ejrm6m4mgvuqcvpa9ucf.apps.googleusercontent.com"
       data-callback="handleGoogleLogin"
-      data-auto_prompt="false">
+      data-auto_select="true"
+      data-auto_prompt="true"
+      data-context="use"
+      data-itp_support="true">
     </div>
     <div class="g_id_signin"
       data-type="standard"
@@ -2867,8 +2870,10 @@ function init() {
 
 // ===================== GOOGLE LOGIN + CLOUD SYNC =====================
 const WORKER_URL = 'https://pingpong-worker.noisy-shape-4fc9.workers.dev';
+const USER_CACHE_KEY = 'pptorneo_user_v1';
 let _currentUser = null;
 let _currentCredential = null;
+let _appInitialized = false;
 
 function showLoginScreen() {
   document.getElementById('loginScreen').style.display = 'flex';
@@ -2897,6 +2902,18 @@ async function handleGoogleLogin(response) {
     _currentUser = { sub: payload.sub, email: payload.email, name: payload.name, picture: payload.picture };
   } catch { _currentUser = null; }
 
+  // Persist user so next load skips the login screen
+  if (_currentUser) {
+    try { localStorage.setItem(USER_CACHE_KEY, JSON.stringify(_currentUser)); } catch {}
+  }
+
+  // If app already running (One Tap silent refresh), just update credential + sync — no re-init
+  if (_appInitialized) {
+    renderUserPill();
+    syncToCloud();
+    return;
+  }
+
   hideLoginScreen();
   showSyncOverlay('Sincronizando tu historial...');
 
@@ -2909,10 +2926,11 @@ async function handleGoogleLogin(response) {
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.user) _currentUser = data.user;
-        if (data.ligaData) {
-          mergeLigaData(data.ligaData);
+        if (data.user) {
+          _currentUser = data.user;
+          try { localStorage.setItem(USER_CACHE_KEY, JSON.stringify(_currentUser)); } catch {}
         }
+        if (data.ligaData) mergeLigaData(data.ligaData);
       }
     }
   } catch (e) {
@@ -2921,6 +2939,7 @@ async function handleGoogleLogin(response) {
 
   hideSyncOverlay();
   renderUserPill();
+  _appInitialized = true;
   init();
 }
 
@@ -2967,6 +2986,7 @@ function continueWithoutLogin() {
   _currentCredential = null;
   hideLoginScreen();
   renderUserPill();
+  _appInitialized = true;
   init();
 }
 
@@ -2975,9 +2995,12 @@ function renderUserPill() {
   if (!pill) return;
   if (_currentUser) {
     pill.style.display = 'flex';
-    pill.innerHTML = `<span class="user-pill" onclick="logoutUser()" title="Cerrar sesión">
-      ${_currentUser.picture ? `<img src="${_currentUser.picture}" alt="">` : `<span style="width:24px;height:24px;border-radius:50%;background:#000;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold">${_currentUser.name.charAt(0)}</span>`}
-      ${_currentUser.name.split(' ')[0]}
+    const avatar = _currentUser.picture
+      ? `<img src="${_currentUser.picture}" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover" referrerpolicy="no-referrer">`
+      : `<span style="width:28px;height:28px;border-radius:50%;background:#000;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold;flex-shrink:0">${_currentUser.name.charAt(0).toUpperCase()}</span>`;
+    pill.innerHTML = `<span class="user-pill" onclick="logoutUser()" title="Cerrar sesión (${_currentUser.email})">
+      ${avatar}
+      <span style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_currentUser.name.split(' ')[0]}</span>
     </span>`;
   } else {
     pill.style.display = 'flex';
@@ -2989,6 +3012,11 @@ function logoutUser() {
   if (!confirm('¿Cerrar sesión? Tus datos locales se conservan.')) return;
   _currentUser = null;
   _currentCredential = null;
+  try { localStorage.removeItem(USER_CACHE_KEY); } catch {}
+  // Revoke Google session so One Tap doesn't auto-sign back in
+  if (window.google && google.accounts && google.accounts.id) {
+    google.accounts.id.disableAutoSelect();
+  }
   renderUserPill();
 }
 
@@ -2996,8 +3024,23 @@ function logoutUser() {
 const _rlr = 'Ricardo López Reyero';
 Object.defineProperty(window,'_owner',{get:()=>_rlr,enumerable:false});
 
-// Show login screen on load (init is called after login)
-showLoginScreen();
+// On load: use cached user to skip login screen, let One Tap refresh credential silently
+(function() {
+  try {
+    const cached = localStorage.getItem(USER_CACHE_KEY);
+    if (cached) {
+      _currentUser = JSON.parse(cached);
+      hideLoginScreen();
+      renderUserPill();
+      _appInitialized = true;
+      init();
+      // One Tap will fire handleGoogleLogin silently in the background → refreshes credential
+      return;
+    }
+  } catch {}
+  // No cache → show login screen as normal
+  showLoginScreen();
+})();
 </script>
 </body>
 </html>
