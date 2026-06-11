@@ -1878,7 +1878,7 @@ function renderPlayingCard(m, tipo, num) {
             style="width:100%;height:44px;font-size:28px;font-weight:900;background:#fff;color:#000;border:none;border-radius:8px;cursor:pointer;line-height:1">+</button>
           <input type="number" min="0" max="99" value="${pts1}"
             class="score-num-input"
-            style="font-size:52px;line-height:1;height:64px"
+            style="font-size:72px;line-height:1;height:88px;color:#fff"
             oninput="setScoreFromInput('${m.id}',1,'${tipo}',this)"
             onclick="this.select()"
             inputmode="numeric">
@@ -1890,7 +1890,7 @@ function renderPlayingCard(m, tipo, num) {
             style="width:100%;height:44px;font-size:28px;font-weight:900;background:#fff;color:#000;border:none;border-radius:8px;cursor:pointer;line-height:1">+</button>
           <input type="number" min="0" max="99" value="${pts2}"
             class="score-num-input"
-            style="font-size:52px;line-height:1;height:64px"
+            style="font-size:72px;line-height:1;height:88px;color:#fff"
             oninput="setScoreFromInput('${m.id}',2,'${tipo}',this)"
             onclick="this.select()"
             inputmode="numeric">
@@ -2207,7 +2207,7 @@ function renderFullMatrix(containerId, partidos, jugadores, tipo) {
         <tbody>
           ${standings.map((s, ri) => {
             const cells = ordered.map((opp, ci) => {
-              if (opp === s.nombre) return '<td style="background:#000;color:#000">—</td>';
+              if (opp === s.nombre) return '<td style="background:#000!important;color:#000!important;border-bottom:1px solid #000">—</td>';
               const p = resultMap[`${s.nombre}|${opp}`];
               if (!p) return '<td style="color:#ccc">·</td>';
               if (p.estado === 'jugando') {
