@@ -215,7 +215,7 @@ tr.row-highlight td{background:rgba(0,0,0,0.06)!important}
 </div>
 
 <nav id="mainNav">
-  <button onclick="switchTab(0)" id="tab0" class="active">🏠 Bienvenida</button>
+  <button onclick="switchTab(0)" id="tab0" class="active">🏆 Ligas</button>
   <button onclick="switchTab(1)" id="tab1">👥 Jugadores</button>
   <button onclick="switchTab(2)" id="tab2">🏓 Individuales</button>
   <button onclick="switchTab(3)" id="tab3" disabled>🤝 Parejas</button>
@@ -225,16 +225,7 @@ tr.row-highlight td{background:rgba(0,0,0,0.06)!important}
 
 <!-- TAB 0: BIENVENIDA -->
 <div id="tabContent0" class="tab-content active">
-  <div class="logo">🏓 PING PONG XTMO</div>
-  <div class="logo-sub">Torneo de Ping Pong</div>
-  <div style="display:flex;gap:12px;justify-content:center;margin-bottom:32px;flex-wrap:wrap">
-    <button class="btn btn-primary" onclick="nuevaLiga()">+ Nueva Liga</button>
-    <button class="btn" onclick="continuarLiga()">▶ Continuar Liga</button>
-    <button class="btn" onclick="openLoadModal()">📂 Cargar Liga Guardada</button>
-    <button class="btn" onclick="openEloModal()">⭐ Ranking ELO Histórico</button>
-  </div>
-  <h3 style="margin-bottom:12px">Historial de Sesiones</h3>
-  <div id="historialSesiones"></div>
+  <div id="ligasContent"></div>
 </div>
 
 <!-- TAB 1: JUGADORES Y MESAS -->
@@ -398,6 +389,7 @@ tr.row-highlight td{background:rgba(0,0,0,0.06)!important}
 // ===================== STATE =====================
 const STATE_KEY = 'pptorneo_state';
 const LIGA_KEY = 'pptorneo_liga';
+const LIGAS_KEY = 'pptorneo_ligas_v2';
 
 let torneoState = {
   fase: 'config', // config | individuales | parejas | done
@@ -415,6 +407,8 @@ let ligaData = {
   jugadores: {},
   sesiones: []
 };
+
+let ligasContainer = { activeId: null, ligas: [] };
 
 let timers = {};
 let currentTab = 0;
@@ -438,12 +432,32 @@ function mostrarTodosPendientes() { _showAllPending = true; renderTab(currentTab
 function ocultarPendientes() { _showAllPending = false; renderTab(currentTab); }
 
 // ===================== PERSISTENCE =====================
+function loadLigas() {
+  try {
+    const raw = localStorage.getItem(LIGAS_KEY);
+    if (raw) { ligasContainer = JSON.parse(raw); return; }
+  } catch {}
+  // Migration: wrap old pptorneo_state into first liga
+  let migratedState = null;
+  try { const s = localStorage.getItem(STATE_KEY); if (s) migratedState = JSON.parse(s); } catch {}
+  const firstId = 'liga_' + Date.now();
+  ligasContainer = { activeId: firstId, ligas: [{ id: firstId, nombre: 'Liga 1', createdAt: Date.now(), state: migratedState }] };
+  saveLigas();
+}
+function saveLigas() {
+  try { localStorage.setItem(LIGAS_KEY, JSON.stringify(ligasContainer)); } catch {}
+}
+function getActiveLiga() {
+  return ligasContainer.ligas.find(l => l.id === ligasContainer.activeId) || ligasContainer.ligas[0] || null;
+}
 function saveState() {
-  localStorage.setItem(STATE_KEY, JSON.stringify(torneoState));
+  const liga = getActiveLiga();
+  if (liga) liga.state = JSON.parse(JSON.stringify(torneoState));
+  saveLigas();
 }
 function loadState() {
-  const s = localStorage.getItem(STATE_KEY);
-  if (s) { try { torneoState = JSON.parse(s); } catch(e) {} }
+  const liga = getActiveLiga();
+  if (liga && liga.state) torneoState = liga.state;
 }
 function saveLiga() {
   localStorage.setItem(LIGA_KEY, JSON.stringify(ligaData));
@@ -1168,7 +1182,7 @@ function switchTab(idx) {
 
 function renderTab(idx) {
   switch(idx) {
-    case 0: historialPage = 0; renderWelcome(); break;
+    case 0: historialPage = 0; renderLigas(); break;
     case 1: renderJugadores(); break;
     case 2: renderIndividuales(); break;
     case 3: renderParejas(); break;
@@ -1237,7 +1251,7 @@ function renderWelcome() {
 
 function cambiarPaginaHistorial(dir) {
   historialPage += dir;
-  renderWelcome();
+  renderLigas();
 }
 
 function toggleSesionDetail(id) {
@@ -1249,7 +1263,7 @@ function borrarSesion(idx) {
   if (!confirm('¿Eliminar esta sesión del historial?')) return;
   ligaData.sesiones.splice(idx, 1);
   saveLiga();
-  renderWelcome();
+  renderLigas();
 }
 
 // ===================== TAB 1: JUGADORES =====================
@@ -2790,48 +2804,149 @@ document.querySelectorAll('.modal').forEach(m => {
 });
 
 // ===================== LIGA ACTIONS =====================
+// ===================== MULTI-LIGA MANAGEMENT =====================
+
+function renderLigas() {
+  const container = document.getElementById('ligasContent');
+  if (!container) return;
+
+  const ligasHtml = ligasContainer.ligas.map(liga => {
+    const isActive = liga.id === ligasContainer.activeId;
+    const st = liga.state || {};
+    const fase = st.fase || 'config';
+    const playerCount = (st.jugadores || []).filter(j => j.presente !== false && !j.seFue).length;
+    const totalMatches = (st.partidos || []).length;
+    const doneMatches = (st.partidos || []).filter(p => p.estado === 'jugado' || p.estado === 'walkover').length;
+    const fecha = liga.createdAt ? new Date(liga.createdAt).toLocaleDateString('es-MX', {day:'numeric',month:'short',year:'numeric'}) : '';
+    const faseLabel = {config:'Configuración',individuales:'En juego',individuales_done:'Indiv. terminados',parejas:'Parejas',done:'Terminada'}[fase] || fase;
+    const faseColor = fase === 'done' ? '#15803d' : fase === 'config' ? '#888' : '#1d4ed8';
+    return `<div style="border:${isActive?'2px solid #000':'1px solid #ddd'};border-radius:10px;padding:16px;margin-bottom:10px;background:${isActive?'#fafafa':'#fff'}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+        <div style="flex:1;min-width:0">
+          ${isActive?'<span style="font-size:10px;font-weight:700;background:#000;color:#fff;padding:2px 8px;border-radius:10px;margin-bottom:6px;display:inline-block;letter-spacing:.5px">ACTIVA</span>':''}
+          <div style="font-size:17px;font-weight:700;margin:4px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${liga.nombre}</div>
+          <div style="font-size:12px;color:#aaa;margin-bottom:6px">${fecha}</div>
+          <div style="display:flex;gap:14px;font-size:13px;flex-wrap:wrap">
+            <span>👥 ${playerCount} jugadores</span>
+            ${fase!=='config'?`<span>📊 ${doneMatches}/${totalMatches} partidos</span>`:''}
+            <span style="color:${faseColor};font-weight:600">${faseLabel}</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0">
+          ${isActive
+            ?`<button class="btn btn-primary btn-sm" onclick="continuarLiga()" style="white-space:nowrap">▶ Ir al torneo</button>`
+            :`<button class="btn btn-sm" onclick="switchLiga('${liga.id}')" style="white-space:nowrap;font-weight:600">↩ Cambiar</button>`
+          }
+          ${ligasContainer.ligas.length>1
+            ?`<button onclick="deleteLiga('${liga.id}')" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:14px;padding:2px 4px" onmouseover="this.style.color='#dc2626'" onmouseout="this.style.color='#ccc'" title="Eliminar liga">🗑</button>`
+            :''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div style="max-width:660px;margin:0 auto;padding-bottom:40px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h2 style="margin:0;font-size:20px">Mis Ligas</h2>
+        <button class="btn btn-primary btn-sm" onclick="promptNuevaLiga()">+ Nueva Liga</button>
+      </div>
+      ${ligasHtml}
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;margin-bottom:24px">
+        <button class="btn btn-sm" onclick="openLoadModal()">📂 Cargar Liga</button>
+        <button class="btn btn-sm" onclick="openEloModal()">⭐ Ranking ELO Histórico</button>
+      </div>
+      <h3 style="margin-bottom:12px;font-size:15px;font-weight:700">Historial de Sesiones</h3>
+      <div id="historialSesiones"></div>
+    </div>`;
+
+  renderWelcome(); // fill #historialSesiones
+}
+
+function promptNuevaLiga() {
+  const nombre = prompt('Nombre de la nueva liga:', 'Liga ' + (ligasContainer.ligas.length + 1));
+  if (!nombre || !nombre.trim()) return;
+  crearNuevaLiga(nombre.trim());
+}
+
+function crearNuevaLiga(nombre) {
+  saveState(); // persist current liga first
+
+  const newId = 'liga_' + Date.now();
+  const newState = {
+    fase: 'config', jugadores: [], mesas: torneoState.mesas, formato: torneoState.formato,
+    partidos: [], partidosParejas: [], parejas: [], activeTab: 0, startDate: null
+  };
+  newState.jugadores = cargarJugadoresHistorico();
+
+  ligasContainer.ligas.push({ id: newId, nombre, createdAt: Date.now(), state: newState });
+  ligasContainer.activeId = newId;
+  saveLigas();
+
+  torneoState = newState;
+  Object.values(timers).forEach(t => { if (t.interval) clearInterval(t.interval); });
+  timers = {};
+  filtroJugador = null;
+  document.getElementById('tab3').disabled = true;
+  document.getElementById('mesasCount').textContent = torneoState.mesas;
+  updateFooterBtns();
+  renderAll();
+  switchTab(1);
+}
+
 function nuevaLiga() {
-  window.location.reload();
+  promptNuevaLiga();
 }
 
 function confirmarNuevaLiga() {
-  openConfirmModal('¿Nueva Liga?', 'Se perderá el progreso actual (el ELO histórico se conserva).', () => {
-    // Save final session data
-    if (torneoState.fase !== 'config') {
-      const standings = getStandings(torneoState.partidos, torneoState.jugadores.map(j => j.nombre));
-      const pStandings = torneoState.parejas.length > 0 ? getStandings(torneoState.partidosParejas, torneoState.parejas.map(p => p.nombre)) : [];
-      ligaData.sesiones.push({
-        fecha: (() => { const d = new Date(); return d.getFullYear() + '_' + String(d.getMonth()+1).padStart(2,'0') + '_' + String(d.getDate()).padStart(2,'0'); })(),
-        jugadores: torneoState.jugadores.filter(j => j.presente !== false).length,
-        campeonIndiv: standings[0] ? standings[0].nombre : null,
-        campeonParejas: pStandings[0] ? pStandings[0].nombre : null,
-        formato: torneoState.formato
-      });
-      saveLiga();
-      syncToCloud();
-    }
-
-    torneoState = {
-      fase: 'config', jugadores: [], mesas: 3, formato: 3,
-      partidos: [], partidosParejas: [], parejas: [], activeTab: 0, startDate: null
-    };
-    timers = {};
-    filtroJugador = null;
-    // Load from history sorted by most recently used
-    torneoState.jugadores = cargarJugadoresHistorico();
-    saveState();
-
-    document.getElementById('tab3').disabled = true;
-    document.getElementById('mesasCount').textContent = 3;
-    updateFooterBtns();
-    switchTab(0);
-    renderAll();
+  openConfirmModal('¿Nueva Liga?', 'Se creará una nueva liga (el ELO histórico se conserva).', () => {
+    const nombre = 'Liga ' + (ligasContainer.ligas.length + 1);
+    crearNuevaLiga(nombre);
   });
+}
+
+function switchLiga(id) {
+  saveState();
+  Object.values(timers).forEach(t => { if (t.interval) clearInterval(t.interval); });
+  timers = {};
+  filtroJugador = null;
+  ligasContainer.activeId = id;
+  saveLigas();
+  loadState();
+  torneoState.jugadores.forEach(j => { if (j.presente === undefined) j.presente = true; });
+  [...(torneoState.partidos || []), ...(torneoState.partidosParejas || [])].forEach(m => {
+    if (m.estado === 'jugando' && m.startTime) {
+      timers[m.id] = { startTime: m.startTime, elapsed: Math.floor((Date.now() - m.startTime) / 1000) };
+      timers[m.id].interval = setInterval(() => {
+        timers[m.id].elapsed = Math.floor((Date.now() - timers[m.id].startTime) / 1000);
+        updateTimerDisplay(m.id);
+      }, 1000);
+    }
+  });
+  document.getElementById('tab3').disabled = !(torneoState.fase === 'parejas' || torneoState.fase === 'done' || torneoState.fase === 'individuales_done');
+  document.getElementById('mesasCount').textContent = torneoState.mesas;
+  updateFooterBtns();
+  renderAll();
+  switchTab(0);
+}
+
+function deleteLiga(id) {
+  if (ligasContainer.ligas.length <= 1) { alert('No puedes eliminar la única liga.'); return; }
+  const liga = ligasContainer.ligas.find(l => l.id === id);
+  if (!confirm(`¿Eliminar la liga "${liga ? liga.nombre : ''}"? No se puede deshacer.`)) return;
+  ligasContainer.ligas = ligasContainer.ligas.filter(l => l.id !== id);
+  if (ligasContainer.activeId === id) {
+    ligasContainer.activeId = ligasContainer.ligas[0].id;
+    loadState();
+    torneoState.jugadores.forEach(j => { if (j.presente === undefined) j.presente = true; });
+  }
+  saveLigas();
+  renderAll();
 }
 
 function continuarLiga() {
   if (torneoState.fase === 'config') {
-    alert('No hay torneo en progreso. Configura uno nuevo.');
+    switchTab(1);
     return;
   }
   switchTab(torneoState.fase === 'parejas' || torneoState.fase === 'done' ? 3 : 2);
@@ -2849,7 +2964,7 @@ function updateFooterBtns() {
 
 // ===================== INIT =====================
 function renderAll() {
-  renderWelcome();
+  renderLigas();
   renderJugadores();
   if (currentTab === 2) renderIndividuales();
   if (currentTab === 3) renderParejas();
@@ -2871,6 +2986,7 @@ function cargarJugadoresHistorico() {
 }
 
 function init() {
+  loadLigas();
   loadState();
   loadLiga();
 
@@ -2910,7 +3026,7 @@ function init() {
   if (torneoState.activeTab > 0) {
     switchTab(torneoState.activeTab);
   } else {
-    renderWelcome();
+    renderLigas();
     renderJugadores();
   }
 }
