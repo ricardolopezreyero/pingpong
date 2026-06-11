@@ -1,0 +1,9 @@
+name = "pingpong-worker"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+account_id = "93695b987a7460c681c06ca4df901ef4"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "pingpong-db"
+database_id = "4e051b94-2038-41dc-91a4-f07501017a71"

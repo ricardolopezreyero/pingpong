@@ -1,0 +1,2897 @@
+<!DOCTYPE html>
+<!-- &#82;&#76;&#82; -->
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="author" content="&#82;&#105;&#99;&#97;&#114;&#100;&#111;&#32;&#76;&#243;&#112;&#101;&#122;&#32;&#82;&#101;&#121;&#101;&#114;&#111;">
+<meta name="copyright" content="&#82;&#76;&#82;&#32;&#50;&#48;&#50;&#54;">
+<title>Ping Pong XTMO</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏓</text></svg>">
+<script src="https://accounts.google.com/gsi/client" async></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#fff;--text:#000;--border:#ccc;--win:#16A34A;--lose:#DC2626;
+  --wo-bg:#F3F4F6;--wo-text:#9CA3AF;--disabled:#aaa;--yellow:#F59E0B;
+  --playing-bg:#000;--playing-text:#fff;--serve-active:#fff;--serve-inactive:#9CA3AF;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#fff;color:#000;min-height:100vh;padding-bottom:80px}
+/* NAV */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;background:#fff;border-bottom:2px solid #000;display:flex;overflow-x:auto}
+nav button{flex:1;min-width:100px;padding:16px 10px;border:none;background:transparent;cursor:pointer;font-size:16px;font-weight:700;white-space:nowrap;border-bottom:4px solid transparent;transition:.2s}
+nav button.active{border-bottom:4px solid #000;background:#f5f5f5}
+nav button:disabled{color:#aaa;cursor:not-allowed}
+.tab-content{display:none;padding:16px;max-width:1200px;margin:0 auto;margin-top:70px}
+.tab-content.active{display:block}
+/* Individuales: sticky layout sin bloquear scroll */
+#tabContent2.active{
+  display:block !important;
+  height:auto !important;
+  overflow:visible !important;
+  padding:0;
+  max-width:none;
+  margin-top:70px;
+}
+.indiv-header{position:sticky;top:70px;background:#fff;z-index:40;border-bottom:1px solid #eee;padding:8px 16px}
+.indiv-body{display:grid;grid-template-columns:65% 35%;gap:0;padding:0 16px;align-items:start}
+.indiv-tabla{position:sticky;top:70px;max-height:calc(100vh - 90px);overflow-y:auto;padding:12px 0 80px 12px}
+/* Parejas: mismo layout sticky */
+#tabContent3.active{display:block !important;height:auto !important;overflow:visible !important;padding:0;max-width:none;margin-top:70px;}
+/* CARDS */
+.card{border:1px solid #ccc;border-radius:8px;padding:16px;margin-bottom:12px}
+.card-playing{border:2px solid #000;background:#000;color:#fff;border-radius:8px;padding:16px;margin-bottom:12px}
+.card-done{border:1px solid #ccc;border-radius:8px;padding:12px;margin-bottom:8px;opacity:.85}
+.card-wo{border:1px solid #ccc;border-radius:8px;padding:12px;margin-bottom:8px;background:#F3F4F6;color:#9CA3AF}
+/* LAYOUT */
+.two-col{display:grid;grid-template-columns:65% 35%;gap:16px}
+@media(max-width:768px){.two-col{grid-template-columns:1fr}}
+/* BUTTONS */
+button{font-family:inherit}
+.btn{padding:8px 16px;border:2px solid #000;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;background:#fff;color:#000;transition:.15s}
+.btn:hover{background:#000;color:#fff}
+.btn-primary{background:#000;color:#fff}
+.btn-primary:hover{background:#333}
+.btn-sm{padding:9px 16px;font-size:14px}
+.btn-danger{border-color:#EF4444;color:#EF4444}
+.btn-danger:hover{background:#EF4444;color:#fff}
+.btn:disabled{opacity:.4;cursor:not-allowed;pointer-events:none}
+/* SCORES */
+.score-display{font-size:64px;font-weight:900;font-family:monospace;line-height:1}
+.score-controls{display:flex;align-items:center;gap:8px}
+.score-btn{width:48px;height:48px;font-size:24px;border:2px solid #fff;background:transparent;color:#fff;border-radius:6px;cursor:pointer;font-weight:bold}
+.score-btn:hover{background:#fff;color:#000}
+.score-num{font-size:48px;font-weight:900;font-family:monospace;min-width:60px;text-align:center}
+/* AVATAR */
+.avatar{width:32px;height:32px;border-radius:50%;background:#ccc;display:inline-flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;color:#fff;overflow:hidden;flex-shrink:0}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.avatar-lg{width:48px;height:48px;font-size:20px}
+.avatar-pair{display:inline-flex}
+.avatar-pair .avatar:last-child{margin-left:-10px}
+/* TABLE */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#000;color:#fff;padding:8px;text-align:left}
+td{padding:8px;border-bottom:1px solid #eee}
+tr:hover td{background:#f9f9f9}
+.cell-win{background:#14532d;color:#86efac;font-weight:bold;text-align:center}
+.cell-lose{background:#7f1d1d;color:#fca5a5;text-align:center}
+.cell-wo{background:#F3F4F6;color:#9CA3AF;text-align:center;font-size:11px}
+.cell-playing{background:#000;color:#fff;text-align:center;font-size:11px}
+/* CHIPS */
+.player-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;border:1px solid #ccc;font-size:12px;margin:3px}
+.chip-playing{background:#000;color:#fff;border-color:#000}
+.chip-done{background:#eee}
+.chip-retired{background:#F3F4F6;color:#9CA3AF;text-decoration:line-through}
+.chip-filtered{outline:3px solid #000;outline-offset:2px;font-weight:bold}
+/* ELO badge */
+.elo-badge{font-size:10px;color:#9CA3AF;font-weight:normal}
+/* Tooltip */
+.elo-tip{border-bottom:1px dotted #9CA3AF;cursor:help;position:relative}
+.elo-tip:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#111;color:#fff;font-size:11px;font-weight:normal;white-space:nowrap;padding:5px 9px;border-radius:5px;pointer-events:none;z-index:300;line-height:1.4}
+.elo-tip:hover::before{content:'';position:absolute;bottom:calc(100% + 1px);left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#111;pointer-events:none;z-index:300}
+/* SERVE indicator */
+.serve-icon{display:inline-block;font-size:18px;animation:bounce .6s infinite alternate}
+@keyframes bounce{0%{transform:translateY(0)}100%{transform:translateY(-4px)}}
+/* TIMER */
+.timer{font-size:14px;font-weight:bold;font-family:monospace}
+.timer-warn{color:#FACC15}
+/* GAMES indicator */
+.games-indicator{display:flex;gap:4px;align-items:center}
+.game-dot{width:12px;height:12px;border-radius:50%;border:2px solid #fff}
+.game-dot.won{background:#fff}
+/* MODAL */
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center}
+.modal.open{display:flex}
+.modal-box{background:#fff;border-radius:12px;padding:24px;max-width:480px;width:90%;max-height:80vh;overflow-y:auto}
+.modal-box h2{margin-bottom:16px}
+/* FOOTER */
+footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:2px solid #000;padding:12px 16px;display:flex;gap:10px;flex-wrap:wrap;z-index:100;justify-content:center}
+/* INPUTS */
+input[type=text],input[type=url]{padding:8px 12px;border:1px solid #ccc;border-radius:6px;font-size:14px;width:100%}
+select{padding:8px 12px;border:1px solid #ccc;border-radius:6px;font-size:14px}
+input[type=radio]{margin-right:6px}
+.form-group{margin-bottom:12px}
+label{display:block;font-weight:600;margin-bottom:4px;font-size:13px}
+/* WELCOME */
+.logo{font-size:48px;font-weight:900;text-align:center;padding:40px 20px 10px;letter-spacing:-2px}
+.logo-sub{text-align:center;color:#666;font-size:18px;margin-bottom:32px}
+/* LOGIN SCREEN */
+#loginScreen{position:fixed;inset:0;background:#fff;z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0}
+#loginScreen .login-logo{font-size:56px;font-weight:900;letter-spacing:-2px;margin-bottom:4px}
+#loginScreen .login-sub{color:#666;font-size:18px;margin-bottom:40px}
+#loginScreen .login-box{background:#fff;border:1px solid #eee;border-radius:16px;padding:32px 40px;text-align:center;box-shadow:0 2px 24px rgba(0,0,0,.07);min-width:320px}
+#loginScreen .login-box h2{font-size:18px;font-weight:700;margin-bottom:6px}
+#loginScreen .login-box p{font-size:13px;color:#666;margin-bottom:20px}
+#loginScreen .login-guest{margin-top:16px;font-size:12px;color:#999;cursor:pointer;background:none;border:none;text-decoration:underline}
+#loginScreen .login-guest:hover{color:#000}
+#loginSync{position:fixed;inset:0;background:rgba(255,255,255,.85);z-index:998;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;font-size:16px;font-weight:600}
+.user-pill{display:inline-flex;align-items:center;gap:8px;padding:5px 12px 5px 5px;border-radius:20px;border:1px solid #eee;font-size:12px;background:#f9f9f9;cursor:pointer}
+.user-pill img{width:24px;height:24px;border-radius:50%}
+.user-pill:hover{background:#f0f0f0}
+/* BANNER */
+.champion-banner{background:#000;color:#fff;padding:20px;border-radius:8px;text-align:center;font-size:20px;font-weight:bold;margin-bottom:16px}
+/* MATCH HISTORY ROW */
+.game-history{font-size:11px;color:#9CA3AF;margin-bottom:6px}
+/* PLAYER ENTRY */
+.player-entry{display:flex;align-items:center;gap:8px;padding:8px;border:1px solid #eee;border-radius:6px;margin-bottom:6px}
+.player-entry .player-name{flex:1;font-weight:600}
+/* FORMAT RADIO */
+.format-option{display:flex;align-items:center;padding:10px;border:1px solid #ccc;border-radius:6px;margin-bottom:6px;cursor:pointer}
+.format-option:hover{background:#f5f5f5}
+.format-option input{margin-right:10px}
+/* NEXT MATCHES */
+.next-section{margin-top:16px;padding-top:12px;border-top:1px solid #333}
+.next-match{padding:8px;border:1px solid #333;border-radius:6px;margin-bottom:6px;font-size:14px;color:#666}
+/* ELO MODAL TABLE */
+.elo-table{width:100%;font-size:13px}
+.elo-table th{background:#000;color:#fff;padding:8px;text-align:left}
+.elo-table td{padding:8px;border-bottom:1px solid #eee}
+/* CONFIRM BUTTON STRONG */
+.btn-confirm{padding:10px 24px;border:none;border-radius:8px;background:#16A34A;color:#fff;cursor:pointer;font-size:15px;font-weight:bold;transition:.15s}
+.btn-confirm:hover{background:#15803d}
+/* TABLA HOVER COLUMN/ROW */
+.col-highlight{background:rgba(0,0,0,0.11)!important}
+tr.row-highlight td{background:rgba(0,0,0,0.07)!important}
+/* SCORE INPUT KEYBOARD */
+.score-num-input{-moz-appearance:textfield;outline:none;background:transparent;border:none;border-bottom:2px solid #444;color:#fff;font-weight:900;font-family:monospace;text-align:center;width:100%;display:block}
+.score-num-input::-webkit-outer-spin-button,.score-num-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.score-num-input:focus{border-bottom-color:#fff}
+/* CHIP PLAYING STRONGER */
+.chip-playing{background:#000;color:#fff;border-color:#000}
+/* 13" LAPTOP OPTIMIZATION */
+@media (max-height:820px) and (max-width:1440px){
+  nav button{padding:9px 7px;font-size:13px;min-width:80px}
+  .tab-content{margin-top:54px}
+  #tabContent2.active,#tabContent3.active{margin-top:54px}
+  .indiv-header{top:54px}
+  .indiv-tabla{top:54px;max-height:calc(100vh - 72px)}
+  .logo{font-size:32px;padding:18px 20px 4px}
+  .logo-sub{font-size:14px;margin-bottom:16px}
+  .card{padding:12px;margin-bottom:10px}
+  .btn{font-size:13px;padding:6px 12px}
+  .modal-box{padding:18px}
+  footer{padding:7px 12px;gap:7px}
+  .btn-sm{padding:6px 11px;font-size:12px}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen">
+  <div class="login-logo">🏓 PING PONG XTMO</div>
+  <div class="login-sub">Liga All Stars</div>
+  <div class="login-box">
+    <h2>Iniciar sesión</h2>
+    <p>Tu historial y ELO se guardan en la nube<br>vinculados a tu cuenta de Google.</p>
+    <div id="g_id_onload"
+      data-client_id="977641517971-23ouv33lu4s8ejrm6m4mgvuqcvpa9ucf.apps.googleusercontent.com"
+      data-callback="handleGoogleLogin"
+      data-auto_prompt="false">
+    </div>
+    <div class="g_id_signin"
+      data-type="standard"
+      data-size="large"
+      data-theme="outline"
+      data-text="sign_in_with"
+      data-shape="rectangular"
+      data-width="280">
+    </div>
+    <button class="login-guest" onclick="continueWithoutLogin()">Continuar sin cuenta (solo local)</button>
+  </div>
+</div>
+
+<!-- SYNC OVERLAY -->
+<div id="loginSync">
+  <span style="font-size:28px">☁️</span>
+  <span id="loginSyncMsg">Sincronizando datos...</span>
+</div>
+
+<nav id="mainNav">
+  <button onclick="switchTab(0)" id="tab0" class="active">🏠 Bienvenida</button>
+  <button onclick="switchTab(1)" id="tab1">👥 Jugadores</button>
+  <button onclick="switchTab(2)" id="tab2">🏓 Individuales</button>
+  <button onclick="switchTab(3)" id="tab3" disabled>🤝 Parejas</button>
+  <button onclick="switchTab(4)" id="tab4">📊 Tabla</button>
+  <div id="userPill" style="display:none;margin-left:auto;align-self:center;padding-right:12px"></div>
+</nav>
+
+<!-- TAB 0: BIENVENIDA -->
+<div id="tabContent0" class="tab-content active">
+  <div class="logo">🏓 PING PONG XTMO</div>
+  <div class="logo-sub">Liga All Stars</div>
+  <div style="display:flex;gap:12px;justify-content:center;margin-bottom:32px;flex-wrap:wrap">
+    <button class="btn btn-primary" onclick="nuevaLiga()">+ Nueva Liga</button>
+    <button class="btn" onclick="continuarLiga()">▶ Continuar Liga</button>
+    <button class="btn" onclick="openLoadModal()">📂 Cargar Liga Guardada</button>
+    <button class="btn" onclick="openEloModal()">⭐ Ranking ELO Histórico</button>
+  </div>
+  <h3 style="margin-bottom:12px">Historial de Sesiones</h3>
+  <div id="historialSesiones"></div>
+</div>
+
+<!-- TAB 1: JUGADORES Y MESAS -->
+<div id="tabContent1" class="tab-content">
+  <h2 style="margin-bottom:16px">Configuración del Torneo</h2>
+
+  <div class="card">
+    <h3 style="margin-bottom:12px">Jugadores</h3>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input type="text" id="nuevoJugador" placeholder="Nombre del jugador" onkeydown="if(event.key==='Enter')addPlayer()">
+      <button class="btn" onclick="addPlayer()">Agregar</button>
+    </div>
+    <div id="playerList" style="max-height:520px;overflow-y:auto;padding-right:4px"></div>
+    <div id="playerCount" style="font-size:13px;color:#666;margin-top:8px"></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-bottom:12px">Mesas</h3>
+    <div style="display:flex;align-items:center;gap:12px">
+      <label>Número de mesas:</label>
+      <button class="btn btn-sm" onclick="changeMesas(-1)">−</button>
+      <span id="mesasCount" style="font-size:20px;font-weight:bold;min-width:30px;text-align:center">3</span>
+      <button class="btn btn-sm" onclick="changeMesas(1)">+</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-bottom:12px">Formato de Partido</h3>
+    <label class="format-option"><input type="radio" name="formato" value="1" checked onchange="setFormato(1)"> 1 juego a 11 <span style="color:#666;font-size:12px;margin-left:6px">(recomendado)</span></label>
+    <label class="format-option"><input type="radio" name="formato" value="3" onchange="confirmarFormato(3, this)"> Mejor de 3 juegos a 11 <span style="color:#666;font-size:12px;margin-left:6px">(competencia)</span></label>
+    <label class="format-option"><input type="radio" name="formato" value="5" onchange="confirmarFormato(5, this)"> Mejor de 5 juegos a 11 <span style="color:#666;font-size:12px;margin-left:6px">(profesional)</span></label>
+  </div>
+
+  <div class="card" id="estimadorCard">
+    <h3 style="margin-bottom:12px">⏱ Estimado de duración</h3>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
+      <div style="display:flex;align-items:center;gap:8px">
+        <label style="font-size:13px;font-weight:600">Min por juego:</label>
+        <input type="number" id="minPorJuego" value="7" min="1" max="60"
+          style="width:60px;padding:5px 8px;border:2px solid #000;border-radius:6px;font-size:15px;font-weight:bold;text-align:center"
+          oninput="renderEstimador()">
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <label style="font-size:13px;font-weight:600">Min entre partidos:</label>
+        <input type="number" id="minEntrePartidos" value="1" min="0" max="30"
+          style="width:60px;padding:5px 8px;border:2px solid #000;border-radius:6px;font-size:15px;font-weight:bold;text-align:center"
+          oninput="renderEstimador()">
+      </div>
+    </div>
+    <div id="estimadorRows"></div>
+  </div>
+
+  <div style="display:flex;gap:12px;flex-wrap:wrap">
+    <button class="btn btn-primary" onclick="generarFixture()" style="font-size:16px;padding:14px 28px">GENERAR FIXTURE</button>
+    <button class="btn" onclick="cargarDemo()">🎮 Cargar Demo</button>
+  </div>
+</div>
+
+<!-- TAB 2: INDIVIDUALES -->
+<div id="tabContent2" class="tab-content">
+  <div id="individualesContent"></div>
+</div>
+
+<!-- TAB 3: PAREJAS -->
+<div id="tabContent3" class="tab-content">
+  <div id="parejasContent"></div>
+</div>
+
+<!-- TAB 4: TABLA -->
+<div id="tabContent4" class="tab-content">
+  <div id="tablaContent"></div>
+</div>
+
+
+<!-- FOOTER -->
+<footer>
+  <button class="btn btn-sm" onclick="guardarLiga()">💾 Guardar Liga</button>
+  <button class="btn btn-sm" id="btnDescIndiv" onclick="exportarCanvas('individuales')" disabled>📥 PNG Individual</button>
+  <button class="btn btn-sm" id="btnPdfIndiv" onclick="exportarPDF('individuales')" disabled>🖨 PDF Individual</button>
+  <button class="btn btn-sm" id="btnDescParejas" onclick="exportarCanvas('parejas')" disabled>📥 PNG Parejas</button>
+  <button class="btn btn-sm" id="btnPdfParejas" onclick="exportarPDF('parejas')" disabled>🖨 PDF Parejas</button>
+  <button class="btn btn-sm btn-danger" onclick="confirmarNuevaLiga()">🗑 Nueva Liga</button>
+</footer>
+
+<!-- MODALS -->
+<div id="modalElo" class="modal">
+  <div class="modal-box">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+      <h2 style="margin-bottom:0">⭐ Ranking ELO Histórico</h2>
+      <button onclick="resetearEloConClave()" title="Reiniciar ranking ELO"
+        style="background:none;border:none;cursor:pointer;font-size:22px;color:#ddd;transition:color .2s;line-height:1;padding:0 4px"
+        onmouseover="this.style.color='#EF4444'" onmouseout="this.style.color='#ddd'">🗑</button>
+    </div>
+    <p style="font-size:13px;color:#666;margin-bottom:12px;background:#f5f5f5;padding:10px;border-radius:6px">
+      <strong>¿Qué es el ELO?</strong> Es un número que refleja tu nivel histórico como jugador. Empiezas en 1000. Si le ganas a alguien con mayor ELO que tú, subes más puntos. Si pierdes con alguien menor, bajas más. Se acumula entre sesiones — con el tiempo refleja quién ha sido el mejor jugador de la liga.
+    </p>
+    <div id="eloModalContent"></div>
+    <button class="btn" onclick="closeModal('modalElo')" style="margin-top:16px">Cerrar</button>
+  </div>
+</div>
+
+<div id="modalConfirm" class="modal">
+  <div class="modal-box">
+    <h2 id="confirmTitle"></h2>
+    <p id="confirmMsg" style="margin:16px 0"></p>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-danger" id="confirmYes">Confirmar</button>
+      <button class="btn" onclick="closeModal('modalConfirm')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div id="modalSorteo" class="modal">
+  <div class="modal-box">
+    <h2>🎲 Sorteo de Saque</h2>
+    <p id="sorteoMsg" style="margin:16px 0"></p>
+    <div id="sorteoBtns" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+  </div>
+</div>
+
+<div id="modalLoad" class="modal">
+  <div class="modal-box">
+    <h2>📂 Cargar Liga Guardada</h2>
+    <p style="margin-bottom:12px">Pega el JSON o selecciona un archivo:</p>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <input type="file" accept=".json" onchange="loadFromFile(event)">
+      <span id="loadFileStatus" style="font-size:12px"></span>
+    </div>
+    <textarea id="loadJson" style="width:100%;height:120px;padding:8px;font-family:monospace;font-size:12px;border:1px solid #ccc;border-radius:6px" placeholder="O pega el JSON aquí..."></textarea>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-primary" onclick="cargarJSON()">Cargar</button>
+      <button class="btn" onclick="closeModal('modalLoad')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div id="modalRetiro" class="modal">
+  <div class="modal-box">
+    <h2>⚠️ Confirmar Retiro</h2>
+    <p id="retiroMsg" style="margin:16px 0"></p>
+    <p style="color:#EF4444;font-size:13px;margin-bottom:16px">Esta acción es irreversible.</p>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-danger" id="retiroConfirmBtn">Confirmar Retiro</button>
+      <button class="btn" onclick="closeModal('modalRetiro')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div id="modalPreParejas" class="modal">
+  <div class="modal-box" style="max-width:560px">
+    <h2 style="margin-bottom:4px">🤝 Confirmar para Parejas</h2>
+    <p style="font-size:13px;color:#666;margin-bottom:14px">Confirma quién juega la fase de parejas. Puedes excluir a alguien.</p>
+    <div id="preParejasList" style="max-height:280px;overflow-y:auto;margin-bottom:12px"></div>
+    <div id="comodinSection" style="display:none;background:#fffbeb;border:1px solid #F59E0B;border-radius:8px;padding:12px;margin-bottom:14px">
+      <div style="font-weight:700;margin-bottom:6px;color:#92400e">⚠️ Número impar de jugadores — selecciona el comodín</div>
+      <p style="font-size:12px;color:#78350f;margin-bottom:10px">El comodín juega en un trío con la pareja del centro del ranking.</p>
+      <div id="comodinList" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+    </div>
+    <div id="preParejasCuenta" style="font-size:13px;color:#666;margin-bottom:12px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn" onclick="closeModal('modalPreParejas')">Cancelar</button>
+      <button class="btn btn-primary" id="btnConfirmarParejas" onclick="confirmarPreParejas()">✅ Generar Parejas</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===================== STATE =====================
+const STATE_KEY = 'pptorneo_state';
+const LIGA_KEY = 'pptorneo_liga';
+
+let torneoState = {
+  fase: 'config', // config | individuales | parejas | done
+  jugadores: [],
+  mesas: 3,
+  formato: 1,
+  partidos: [], // individuales
+  partidosParejas: [],
+  parejas: [],
+  activeTab: 0,
+  startDate: null
+};
+
+let ligaData = {
+  jugadores: {},
+  sesiones: []
+};
+
+let timers = {};
+let currentTab = 0;
+let filtroJugador = null;
+let historialPage = 0;
+const HISTORIAL_PER_PAGE = 10;
+let _showAllPending = false;
+
+function setFiltroJugador(nombre) {
+  filtroJugador = (filtroJugador === nombre) ? null : nombre;
+  renderTab(currentTab);
+}
+
+function mostrarTodosPendientes() { _showAllPending = true; renderTab(currentTab); }
+function ocultarPendientes() { _showAllPending = false; renderTab(currentTab); }
+
+// ===================== PERSISTENCE =====================
+function saveState() {
+  localStorage.setItem(STATE_KEY, JSON.stringify(torneoState));
+}
+function loadState() {
+  const s = localStorage.getItem(STATE_KEY);
+  if (s) { try { torneoState = JSON.parse(s); } catch(e) {} }
+}
+function saveLiga() {
+  localStorage.setItem(LIGA_KEY, JSON.stringify(ligaData));
+}
+function loadLiga() {
+  const s = localStorage.getItem(LIGA_KEY);
+  if (s) { try { ligaData = JSON.parse(s); } catch(e) {} }
+}
+
+// ===================== ELO =====================
+const ELO_DEFAULT = 1000;
+const K_SINGLES = 32;
+const K_DOUBLES = 24;
+const K_WO = 16;
+
+function getElo(nombre) {
+  if (ligaData.jugadores[nombre]) return ligaData.jugadores[nombre].elo;
+  return ELO_DEFAULT;
+}
+
+function ensurePlayer(nombre) {
+  if (!ligaData.jugadores[nombre]) {
+    ligaData.jugadores[nombre] = { elo: ELO_DEFAULT, pj: 0, pg: 0, racha: 0, lastUsed: Date.now() };
+  } else {
+    ligaData.jugadores[nombre].lastUsed = Date.now();
+  }
+}
+
+function calcEloChange(rWinner, rLoser, k) {
+  const expected = 1 / (1 + Math.pow(10, (rLoser - rWinner) / 400));
+  return {
+    winner: Math.round(k * (1 - expected)),
+    loser: Math.round(k * (0 - expected))
+  };
+}
+
+function updateEloMatch(ganadorNombre, perdedorNombre, k = K_SINGLES) {
+  ensurePlayer(ganadorNombre);
+  ensurePlayer(perdedorNombre);
+  const rW = ligaData.jugadores[ganadorNombre].elo;
+  const rL = ligaData.jugadores[perdedorNombre].elo;
+  const delta = calcEloChange(rW, rL, k);
+  ligaData.jugadores[ganadorNombre].elo += delta.winner;
+  ligaData.jugadores[perdedorNombre].elo += delta.loser;
+  ligaData.jugadores[ganadorNombre].pj++;
+  ligaData.jugadores[perdedorNombre].pj++;
+  ligaData.jugadores[ganadorNombre].pg++;
+  ligaData.jugadores[ganadorNombre].racha = (ligaData.jugadores[ganadorNombre].racha > 0 ? ligaData.jugadores[ganadorNombre].racha : 0) + 1;
+  ligaData.jugadores[perdedorNombre].racha = (ligaData.jugadores[perdedorNombre].racha < 0 ? ligaData.jugadores[perdedorNombre].racha : 0) - 1;
+  saveLiga();
+}
+
+// ===================== ROUND ROBIN =====================
+function generateRoundRobin(players) {
+  let ps = [...players];
+  if (ps.length % 2 !== 0) ps.push('BYE');
+  const n = ps.length;
+  const fixed = ps[0];
+  const rotating = ps.slice(1);
+  const rounds = [];
+
+  for (let r = 0; r < n - 1; r++) {
+    const current = [fixed, ...rotating];
+    const round = [];
+    for (let i = 0; i < n / 2; i++) {
+      const p1 = current[i];
+      const p2 = current[n - 1 - i];
+      if (p1 !== 'BYE' && p2 !== 'BYE') {
+        round.push({ j1: p1, j2: p2 });
+      }
+    }
+    rounds.push(round);
+    rotating.unshift(rotating.pop());
+  }
+  return rounds;
+}
+
+function buildPartidos(players, tipo = 'individual') {
+  const rounds = generateRoundRobin(players);
+  const partidos = [];
+  let id = 0;
+  rounds.forEach((round, ri) => {
+    round.forEach(match => {
+      partidos.push({
+        id: `${tipo}_${id++}`,
+        ronda: ri + 1,
+        jugador1: match.j1,
+        jugador2: match.j2,
+        estado: 'por_jugar',
+        juegos: [],
+        juegoActual: { pts1: 0, pts2: 0 },
+        mesa: null,
+        ganador: null,
+        duracion: 0,
+        eloActualizado: false,
+        tipo
+      });
+    });
+  });
+  return partidos;
+}
+
+// ===================== SERVE CALCULATION =====================
+function calcSaque(juegoActual, pts1, pts2) {
+  if (juegoActual.saqueInicial === null) return null;
+  const total = pts1 + pts2;
+  const initial = juegoActual.saqueInicial; // 0 or 1
+  let server;
+  if (pts1 >= 10 && pts2 >= 10) {
+    server = (initial + total) % 2;
+  } else {
+    server = (initial + Math.floor(total / 2)) % 2;
+  }
+  return server; // 0 = j1, 1 = j2
+}
+
+// ===================== TIMER =====================
+function startMatchTimer(matchId) {
+  if (timers[matchId]) return;
+  timers[matchId] = { startTime: Date.now(), elapsed: 0 };
+  timers[matchId].interval = setInterval(() => {
+    const t = timers[matchId];
+    t.elapsed = Math.floor((Date.now() - t.startTime) / 1000);
+    updateTimerDisplay(matchId);
+  }, 1000);
+}
+
+function stopMatchTimer(matchId) {
+  if (!timers[matchId]) return 0;
+  clearInterval(timers[matchId].interval);
+  const elapsed = timers[matchId].elapsed;
+  delete timers[matchId];
+  return elapsed;
+}
+
+function getElapsed(matchId) {
+  return timers[matchId] ? timers[matchId].elapsed : 0;
+}
+
+function formatTime(sec) {
+  const m = Math.floor(sec / 60).toString().padStart(2, '0');
+  const s = (sec % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+function updateTimerDisplay(matchId) {
+  const el = document.getElementById(`timer_${matchId}`);
+  if (!el) return;
+  const sec = getElapsed(matchId);
+  el.textContent = formatTime(sec);
+  el.className = 'timer' + (sec > 900 ? ' timer-warn' : '');
+}
+
+// ===================== AVATAR =====================
+function avatarEl(nombre, foto, size = '') {
+  const cls = `avatar${size === 'lg' ? ' avatar-lg' : ''}`;
+  if (foto) {
+    return `<span class="${cls}"><img src="${foto}" alt="${nombre}"></span>`;
+  }
+  const initial = nombre ? nombre.charAt(0).toUpperCase() : '?';
+  return `<span class="${cls}" style="background:#555">${initial}</span>`;
+}
+
+function getPlayerData(nombre) {
+  return torneoState.jugadores.find(j => j.nombre === nombre) || { nombre, foto: null };
+}
+
+// ===================== MESA ASSIGNMENT =====================
+function getMesaLibre(partidos) {
+  const used = new Set(partidos.filter(p => p.estado === 'jugando').map(p => p.mesa));
+  for (let i = 1; i <= torneoState.mesas; i++) {
+    if (!used.has(i)) return i;
+  }
+  return null;
+}
+
+function getJugadoresOcupados(partidos) {
+  const busy = new Set();
+  partidos.filter(p => p.estado === 'jugando').forEach(p => {
+    if (Array.isArray(p.jugador1)) { p.jugador1.forEach(j => busy.add(j)); p.jugador2.forEach(j => busy.add(j)); }
+    else { busy.add(p.jugador1); busy.add(p.jugador2); }
+  });
+  return busy;
+}
+
+// ===================== GAME VALIDATION =====================
+function isGameValid(pts1, pts2) {
+  if (pts1 < 0 || pts2 < 0) return false;
+  if (pts1 >= 11 || pts2 >= 11) {
+    const diff = Math.abs(pts1 - pts2);
+    return diff >= 2;
+  }
+  return false;
+}
+
+function gameWinner(pts1, pts2) {
+  if (!isGameValid(pts1, pts2)) return null;
+  return pts1 > pts2 ? 1 : 2;
+}
+
+function countWins(juegos, player) {
+  return juegos.filter(g => g.ganador === player).length;
+}
+
+function gamesNeeded() {
+  return Math.ceil(torneoState.formato / 2);
+}
+
+function matchWinner(match) {
+  const need = gamesNeeded();
+  const w1 = countWins(match.juegos, 1);
+  const w2 = countWins(match.juegos, 2);
+  if (w1 >= need) return 1;
+  if (w2 >= need) return 2;
+  return null;
+}
+
+// ===================== POINTS EDIT =====================
+function addPt(matchId, player, tipo) {
+  const partidos = tipo === 'individuales' ? torneoState.partidos : torneoState.partidosParejas;
+  const match = partidos.find(p => p.id === matchId);
+  if (!match || match.estado !== 'jugando') return;
+  if (player === 1) match.juegoActual.pts1 = Math.max(0, match.juegoActual.pts1 + 1);
+  else match.juegoActual.pts2 = Math.max(0, match.juegoActual.pts2 + 1);
+  saveState();
+  renderTab(currentTab);
+}
+
+function setScoreFromInput(matchId, player, tipo, inputEl) {
+  const partidos = tipo === 'individuales' ? torneoState.partidos : torneoState.partidosParejas;
+  const match = partidos.find(p => p.id === matchId);
+  if (!match || match.estado !== 'jugando') return;
+  const v = Math.max(0, Math.min(99, parseInt(inputEl.value) || 0));
+  if (player === 1) match.juegoActual.pts1 = v;
+  else match.juegoActual.pts2 = v;
+  saveState();
+  // Actualizar botón confirmar inline sin re-renderizar (conserva el foco del input)
+  const { pts1, pts2 } = match.juegoActual;
+  const valid = isGameValid(pts1, pts2);
+  const area = document.getElementById('confirmArea_' + matchId);
+  if (area) {
+    const resetBtn = `<button onclick="resetJuego('${matchId}','${tipo}')"
+      style="padding:7px 12px;border:1px solid #444;border-radius:6px;background:transparent;color:#9CA3AF;cursor:pointer;font-size:12px">↺ Resetear</button>`;
+    const confirmPart = valid
+      ? `<button onclick="confirmarJuego('${matchId}','${tipo}')" class="btn-confirm">✓ CONFIRMAR &nbsp; ${pts1} – ${pts2}</button>`
+      : `<span style="font-size:12px;color:#555">${pts1===0&&pts2===0?'Presiona + para sumar puntos':'Necesitas ventaja de 2 puntos'}</span>`;
+    area.innerHTML = resetBtn + confirmPart;
+  }
+}
+
+function subPt(matchId, player, tipo) {
+  const partidos = tipo === 'individuales' ? torneoState.partidos : torneoState.partidosParejas;
+  const match = partidos.find(p => p.id === matchId);
+  if (!match || match.estado !== 'jugando') return;
+  if (player === 1) match.juegoActual.pts1 = Math.max(0, match.juegoActual.pts1 - 1);
+  else match.juegoActual.pts2 = Math.max(0, match.juegoActual.pts2 - 1);
+  saveState();
+  renderTab(currentTab);
+}
+
+// ===================== MATCH ACTIONS =====================
+function iniciarPartido(matchId, tipo) {
+  const partidos = tipo === 'individuales' ? torneoState.partidos : torneoState.partidosParejas;
+  const match = partidos.find(p => p.id === matchId);
+  if (!match) return;
+
+  const mesa = getMesaLibre(partidos);
+  if (!mesa) { alert('No hay mesas disponibles.'); return; }
+
+  const busy = getJugadoresOcupados(partidos);
+  const j1s = Array.isArray(match.jugador1) ? match.jugador1 : [match.jugador1];
+  const j2s = Array.isArray(match.jugador2) ? match.jugador2 : [match.jugador2];
+
+  for (const j of [...j1s, ...j2s]) {
+    if (busy.has(j)) { alert(`${j} ya está en un partido.`); return; }
+  }
+
+  const retired = torneoState.jugadores.filter(j => j.seFue).map(j => j.nombre);
+  for (const j of [...j1s, ...j2s]) {
+    if (retired.includes(j)) { alert(`${j} se retiró del torneo.`); return; }
+  }
+
+  match.estado = 'jugando';
+  match.mesa = mesa;
+  match.juegoActual = { pts1: 0, pts2: 0 };
+  match.juegos = [];
+  match.startTime = Date.now();
+  _showAllPending = false;
+  startMatchTimer(matchId);
+  saveState();
+  renderTab(currentTab);
+  // Scroll al partido activo — compensa el header sticky para no taparlo
+  setTimeout(() => {
+    const el = document.getElementById('match_' + matchId);
+    if (!el) return;
+    const header = document.querySelector('.indiv-header');
+    const offset = (header ? header.offsetHeight : 0) + 64; // 64 = nav + margen
+    const top = el.getBoundingClientRect().top + window.scrollY - offset;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  }, 150);
+}
+
+function openSorteoModal(matchId, tipo) {
+  const partidos = tipo === 'individuales' ? torneoState.partidos : torneoState.partidosParejas;
+  const match = partidos.find(p => p.id === matchId);
+  if (!match) return;
+
+  const n1 = Array.isArray(match.jugador1) ? match.jugador1.join('/') : match.jugador1;
+  const n2 = Array.isArray(match.jugador2) ? match.jugador2.join('/') : match.jugador2;
+
+  document.getElementById('sorteoMsg').textContent = `¿Quién saca primero en ${n1} vs ${n2}?`;
+  const btns = document.getElementById('sorteoBtns');
+  btns.innerHTML = `
+    <button class="btn btn-primary" onclick="setSaque('${matchId}','${tipo}',0);closeModal('modalSorteo')">${n1}</button>
+    <button class="btn btn-primary" onclick="setSaque('${matchId}','${tipo}',1);closeModal('modalSorteo')">${n2}</button>
+    <button class="btn" onclick="sortearSaque('${matchId}','${tipo}')">🎲 Sortear</button>
+  `;
+  document.getElementById('modalSorteo').classList.add('open');
+}
+
+function sortearSaque(matchId, tipo) {
+  setSaque(matchId, tipo, Math.random() < 0.5 ? 0 : 1);
+  closeModal('modalSorteo');
+}
+
+function setSaque(matchId, tipo, player) {
+  const partidos = tipo === 'individuales' ? torneoState.partidos : torneoState.partidosParejas;
+  const match = partidos.find(p => p.id === matchId);
+  if (!match) return;
+  match.juegoActual.saqueInicial = (player === null || player === 'null') ? null : Number(player);
+  saveState();
+  renderTab(currentTab);
+}
+
+function confirmarJuego(matchId, tipo) {
+  const partidos = tipo === 'individuales' ? torneoState.partidos : torneoState.partidosParejas;
+  const match = partidos.find(p => p.id === matchId);
+  if (!match) return;
+
+  const { pts1, pts2 } = match.juegoActual;
+  const winner = gameWinner(pts1, pts2);
+  if (!winner) return;
+
+  match.juegos.push({ pts1, pts2, ganador: winner });
+
+  const mw = matchWinner(match);
+  if (mw !== null) {
+    const elapsed = stopMatchTimer(matchId);
+    match.duracion = elapsed;
+    match.estado = 'jugado';
+    match.ganador = mw === 1 ? match.jugador1 : match.jugador2;
+    match.juegoActual = { pts1: 0, pts2: 0 };
+
+    if (!match.eloActualizado) {
+      const gNombre = Array.isArray(match.ganador) ? match.ganador.join('/') : match.ganador;
+      const loser = mw === 1 ? match.jugador2 : match.jugador1;
+      const lNombre = Array.isArray(loser) ? loser.join('/') : loser;
+      if (tipo === 'individuales') {
+        updateEloMatch(gNombre, lNombre, K_SINGLES);
+      } else {
+        const winners = Array.isArray(match.ganador) ? match.ganador : [match.ganador];
+        const losers = Array.isArray(loser) ? loser : [loser];
+        winners.forEach(w => { ensurePlayer(w); ligaData.jugadores[w].elo += Math.round(K_DOUBLES * 0.5); ligaData.jugadores[w].pj++; ligaData.jugadores[w].pg++; });
+        losers.forEach(l => { ensurePlayer(l); ligaData.jugadores[l].elo -= Math.round(K_DOUBLES * 0.5); ligaData.jugadores[l].pj++; });
+        saveLiga();
+      }
+      match.eloActualizado = true;
+    }
+    checkPhaseComplete(partidos, tipo);
+  } else {
+    match.juegoActual = { pts1: 0, pts2: 0 };
+  }
+
+  saveState();
+  renderTab(currentTab);
+}
+
+function resetJuego(matchId, tipo) {
+  const partidos = tipo === 'individuales' ? torneoState.partidos : torneoState.partidosParejas;
+  const match = partidos.find(p => p.id === matchId);
+  if (!match) return;
+  match.juegoActual = { pts1: 0, pts2: 0 };
+  saveState();
+  renderTab(currentTab);
+}
+
+function editarPartido(matchId, tipo) {
+  const partidos = tipo === 'individuales' ? torneoState.partidos : torneoState.partidosParejas;
+  const match = partidos.find(p => p.id === matchId);
+  if (!match || match.estado !== 'jugado') return;
+
+  // Revert ELO if was updated
+  // For simplicity, just re-open as playing with last game state
+  if (match.eloActualizado) {
+    alert('Los puntos ELO ya fueron actualizados para este partido. La edición de marcador no revertirá el ELO.');
+  }
+
+  // Restore last game's scores so user can adjust from there
+  const lastGame = match.juegos.length > 0 ? match.juegos[match.juegos.length - 1] : null;
+  match.juegos = match.juegos.slice(0, -1); // remove last game (will be re-entered)
+  match.estado = 'jugando';
+  match.juegoActual = { pts1: lastGame ? lastGame.pts1 : 0, pts2: lastGame ? lastGame.pts2 : 0 };
+  startMatchTimer(matchId);
+  saveState();
+  renderTab(currentTab);
+}
+
+function walkoverPartido(matchId, tipo) {
+  const partidos = tipo === 'individuales' ? torneoState.partidos : torneoState.partidosParejas;
+  const match = partidos.find(p => p.id === matchId);
+  if (!match) return;
+
+  const n1 = Array.isArray(match.jugador1) ? match.jugador1.join('/') : match.jugador1;
+  const n2 = Array.isArray(match.jugador2) ? match.jugador2.join('/') : match.jugador2;
+
+  openConfirmModal(`W.O. - ¿Quién gana?`, `¿Cuál es el ganador por W.O.?`,
+    () => {
+      match.estado = 'walkover';
+      match.ganador = match.jugador1;
+      if (!match.eloActualizado) {
+        const gn = Array.isArray(match.jugador1) ? match.jugador1.join('/') : match.jugador1;
+        const ln = Array.isArray(match.jugador2) ? match.jugador2.join('/') : match.jugador2;
+        if (tipo === 'individuales') updateEloMatch(gn, ln, K_WO);
+        match.eloActualizado = true;
+      }
+      saveState(); renderTab(currentTab);
+    }
+  );
+}
+
+function checkPhaseComplete(partidos, tipo) {
+  const active = partidos.filter(p => p.estado !== 'jugado' && p.estado !== 'walkover');
+  if (active.length === 0) {
+    if (tipo === 'individuales') {
+      torneoState.fase = 'individuales_done';
+      document.getElementById('tab3').disabled = false;
+      updateFooterBtns();
+    } else {
+      torneoState.fase = 'done';
+      updateFooterBtns();
+    }
+    saveState();
+  }
+}
+
+// ===================== PLAYER RETIREMENT =====================
+function retirarJugador(nombre) {
+  document.getElementById('retiroMsg').textContent =
+    `¿Confirmas el retiro de ${nombre}? Sus partidos pendientes se marcarán como W.O. a favor del rival.`;
+  document.getElementById('retiroConfirmBtn').onclick = () => {
+    doRetiro(nombre);
+    closeModal('modalRetiro');
+  };
+  document.getElementById('modalRetiro').classList.add('open');
+}
+
+function doRetiro(nombre) {
+  const jug = torneoState.jugadores.find(j => j.nombre === nombre);
+  if (jug) jug.seFue = true;
+
+  torneoState.partidos.forEach(p => {
+    if (p.estado === 'jugado' || p.estado === 'walkover') return;
+    const involved = [p.jugador1, p.jugador2].includes(nombre);
+    if (!involved) return;
+
+    if (p.estado === 'jugando') {
+      stopMatchTimer(p.id);
+      p.mesa = null;
+    }
+
+    p.estado = 'walkover';
+    const rival = p.jugador1 === nombre ? p.jugador2 : p.jugador1;
+    p.ganador = rival;
+    if (!p.eloActualizado) {
+      updateEloMatch(rival, nombre, K_WO);
+      p.eloActualizado = true;
+    }
+  });
+
+  saveState();
+  renderTab(currentTab);
+}
+
+// ===================== STANDINGS =====================
+function getStandings(partidos, jugadoresList) {
+  const stats = {};
+  jugadoresList.forEach(j => {
+    const nombre = typeof j === 'string' ? j : j.nombre;
+    stats[nombre] = { nombre, pj: 0, pg: 0, pp: 0, pts: 0, gf: 0, gc: 0 };
+  });
+
+  // H2H map: key "A|B" → nombre del ganador
+  const h2h = {};
+
+  partidos.forEach(p => {
+    if (p.estado !== 'jugado' && p.estado !== 'walkover') return;
+    const n1 = p.pareja1Nombre || getName(p.jugador1);
+    const n2 = p.pareja2Nombre || getName(p.jugador2);
+    if (!stats[n1]) stats[n1] = { nombre: n1, pj: 0, pg: 0, pp: 0, pts: 0, gf: 0, gc: 0 };
+    if (!stats[n2]) stats[n2] = { nombre: n2, pj: 0, pg: 0, pp: 0, pts: 0, gf: 0, gc: 0 };
+
+    const ganadorArr = Array.isArray(p.ganador) ? p.ganador : [p.ganador];
+    const j1arr = Array.isArray(p.jugador1) ? p.jugador1 : [p.jugador1];
+    const gNombre = p.pareja1Nombre
+      ? (ganadorArr[0] === j1arr[0] ? n1 : n2)
+      : getName(p.ganador);
+
+    // Store H2H result
+    h2h[`${n1}|${n2}`] = gNombre;
+    h2h[`${n2}|${n1}`] = gNombre;
+
+    stats[n1].pj++; stats[n2].pj++;
+    if (gNombre === n1) { stats[n1].pg++; stats[n1].pts += 2; stats[n2].pp++; }
+    else { stats[n2].pg++; stats[n2].pts += 2; stats[n1].pp++; }
+
+    p.juegos.forEach(g => {
+      if (stats[n1]) { stats[n1].gf += g.pts1; stats[n1].gc += g.pts2; }
+      if (stats[n2]) { stats[n2].gf += g.pts2; stats[n2].gc += g.pts1; }
+    });
+  });
+
+  return Object.values(stats).sort((a, b) => {
+    if (b.pts !== a.pts) return b.pts - a.pts;
+    // Desempate por partido directo (H2H)
+    const key = `${a.nombre}|${b.nombre}`;
+    if (h2h[key]) {
+      if (h2h[key] === a.nombre) return -1;
+      if (h2h[key] === b.nombre) return 1;
+    }
+    // Fallback: diferencia de puntos
+    return (b.gf - b.gc) - (a.gf - a.gc);
+  });
+}
+
+// ===================== PAREJAS GENERATION =====================
+let _preParejaSeleccion = [];
+let _comodinSeleccionado = null;
+
+function mostrarPreParejas() {
+  // Jugadores activos que jugaron el individual
+  const participantes = torneoState.jugadores.filter(j => j.presente === true && !j.seFue);
+  _preParejaSeleccion = participantes.map(j => ({ nombre: j.nombre, incluido: true }));
+  _comodinSeleccionado = null;
+  renderPreParejaModal();
+  document.getElementById('modalPreParejas').classList.add('open');
+}
+
+function renderPreParejaModal() {
+  const listEl = document.getElementById('preParejasList');
+  listEl.innerHTML = _preParejaSeleccion.map((item, i) => {
+    const j = torneoState.jugadores.find(p => p.nombre === item.nombre) || { nombre: item.nombre, foto: null };
+    return `<div class="player-entry" style="opacity:${item.incluido ? 1 : 0.45}">
+      <button onclick="togglePreParejaJugador(${i})"
+        style="width:32px;height:32px;border-radius:50%;border:2px solid ${item.incluido ? '#16A34A' : '#ccc'};
+               background:${item.incluido ? '#16A34A' : '#fff'};cursor:pointer;font-size:14px;flex-shrink:0;
+               display:flex;align-items:center;justify-content:center;transition:.15s">
+        ${item.incluido ? '<span style="color:#fff;font-weight:bold;font-size:13px">✓</span>' : ''}
+      </button>
+      ${avatarEl(j.nombre, j.foto)}
+      <span class="player-name" style="flex:1">${j.nombre}</span>
+    </div>`;
+  }).join('');
+
+  const activos = _preParejaSeleccion.filter(x => x.incluido);
+  const n = activos.length;
+  const esImpar = n % 2 !== 0;
+
+  document.getElementById('preParejasCuenta').innerHTML =
+    `<span style="color:#16A34A;font-weight:bold">${n} jugador${n!==1?'es':''}</span> confirmados → ${esImpar ? '<span style="color:#DC2626">número impar, se requiere comodín</span>' : Math.floor(n/2) + ' parejas'}`;
+
+  const comodinSection = document.getElementById('comodinSection');
+  if (esImpar) {
+    comodinSection.style.display = 'block';
+    const comodinList = document.getElementById('comodinList');
+    comodinList.innerHTML = activos.map(item => {
+      const sel = _comodinSeleccionado === item.nombre;
+      return `<button onclick="seleccionarComodin('${item.nombre}')"
+        style="padding:6px 12px;border:2px solid ${sel ? '#F59E0B' : '#ccc'};border-radius:20px;
+               background:${sel ? '#F59E0B' : '#fff'};color:${sel ? '#fff' : '#000'};
+               cursor:pointer;font-size:12px;font-weight:${sel ? '700' : '400'};transition:.15s">
+        ${sel ? '★ ' : ''}${item.nombre}
+      </button>`;
+    }).join('');
+  } else {
+    comodinSection.style.display = 'none';
+    _comodinSeleccionado = null;
+  }
+
+  const btnConfirmar = document.getElementById('btnConfirmarParejas');
+  const puedeConfirmar = n >= 2 && (!esImpar || _comodinSeleccionado);
+  btnConfirmar.disabled = !puedeConfirmar;
+}
+
+function togglePreParejaJugador(i) {
+  _preParejaSeleccion[i].incluido = !_preParejaSeleccion[i].incluido;
+  if (_comodinSeleccionado === _preParejaSeleccion[i].nombre && !_preParejaSeleccion[i].incluido) {
+    _comodinSeleccionado = null;
+  }
+  renderPreParejaModal();
+}
+
+function seleccionarComodin(nombre) {
+  _comodinSeleccionado = (_comodinSeleccionado === nombre) ? null : nombre;
+  renderPreParejaModal();
+}
+
+function confirmarPreParejas() {
+  const activos = _preParejaSeleccion.filter(x => x.incluido).map(x => x.nombre);
+  if (activos.length < 2) { alert('Necesitas al menos 2 jugadores.'); return; }
+  const esImpar = activos.length % 2 !== 0;
+  if (esImpar && !_comodinSeleccionado) { alert('Selecciona un comodín.'); return; }
+  closeModal('modalPreParejas');
+  generarParejas(activos, _comodinSeleccionado);
+}
+
+function generarParejas(jugadoresActivos, comodinNombre = null) {
+  // jugadoresActivos: array de nombres ya filtrados desde la pantalla de confirmación
+  // Si no se pasa (llamada directa), usar los presentes
+  if (!jugadoresActivos) {
+    jugadoresActivos = torneoState.jugadores.filter(j => j.presente === true && !j.seFue).map(j => j.nombre);
+  }
+
+  const standings = getStandings(torneoState.partidos,
+    torneoState.jugadores.filter(j => jugadoresActivos.includes(j.nombre)));
+  let lista = standings.map(s => s.nombre);
+
+  // Mover comodín al final para el trío
+  if (comodinNombre) {
+    const idx = lista.indexOf(comodinNombre);
+    if (idx >= 0) { lista.splice(idx, 1); lista.push(comodinNombre); }
+  }
+
+  const n = lista.length;
+  const parejas = [];
+
+  if (n % 2 === 0) {
+    for (let i = 0; i < n / 2; i++) {
+      parejas.push({
+        nombre: `${lista[i]} / ${lista[n-1-i]}`,
+        jugadores: [lista[i], lista[n-1-i]],
+        foto: null
+      });
+    }
+  } else {
+    // Último es el comodín (o el del medio si no se eligió)
+    const comodin = lista[lista.length - 1];
+    const resto = lista.slice(0, lista.length - 1);
+    const mid = Math.floor(resto.length / 2);
+    for (let i = 0; i < Math.floor(resto.length / 2); i++) {
+      if (i === mid - 1) {
+        parejas.push({
+          nombre: `${resto[i]} / ${resto[resto.length-1-i]} (+${comodin})`,
+          jugadores: [resto[i], resto[resto.length-1-i], comodin],
+          foto: null
+        });
+      } else {
+        parejas.push({
+          nombre: `${resto[i]} / ${resto[resto.length-1-i]}`,
+          jugadores: [resto[i], resto[resto.length-1-i]],
+          foto: null
+        });
+      }
+    }
+  }
+
+  torneoState.parejas = parejas;
+  torneoState.partidosParejas = buildPartidos(parejas.map(p => p.nombre), 'parejas');
+  torneoState.partidosParejas.forEach(p => {
+    const pa1 = parejas.find(pa => pa.nombre === p.jugador1);
+    const pa2 = parejas.find(pa => pa.nombre === p.jugador2);
+    if (pa1) p.jugador1 = pa1.jugadores;
+    if (pa2) p.jugador2 = pa2.jugadores;
+    p.pareja1Nombre = pa1 ? pa1.nombre : p.jugador1;
+    p.pareja2Nombre = pa2 ? pa2.nombre : p.jugador2;
+  });
+
+  torneoState.fase = 'parejas';
+  saveState();
+  switchTab(3);
+  renderTab(3);
+}
+
+// ===================== RENDER FUNCTIONS =====================
+function switchTab(idx) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach((b, i) => b.classList.toggle('active', i === idx));
+  document.getElementById(`tabContent${idx}`).classList.add('active');
+  currentTab = idx;
+  torneoState.activeTab = idx;
+
+
+
+  renderTab(idx);
+}
+
+function renderTab(idx) {
+  switch(idx) {
+    case 0: historialPage = 0; renderWelcome(); break;
+    case 1: renderJugadores(); break;
+    case 2: renderIndividuales(); break;
+    case 3: renderParejas(); break;
+    case 4: renderTabla(); break;
+  }
+}
+
+// ===================== TAB 0: WELCOME =====================
+function renderWelcome() {
+  const sesiones = ligaData.sesiones || [];
+  const container = document.getElementById('historialSesiones');
+  if (sesiones.length === 0) {
+    container.innerHTML = '<p style="color:#666;font-style:italic">No hay sesiones registradas aún.</p>';
+    return;
+  }
+
+  // Newest first
+  const invertidas = [...sesiones].reverse();
+  const totalPages = Math.ceil(invertidas.length / HISTORIAL_PER_PAGE);
+  historialPage = Math.max(0, Math.min(historialPage, totalPages - 1));
+
+  const start = historialPage * HISTORIAL_PER_PAGE;
+  const pagina = invertidas.slice(start, start + HISTORIAL_PER_PAGE);
+
+  const rows = pagina.map((s, i) => {
+    const realIdx = sesiones.length - 1 - (start + i);
+    const expandId = 'sesion_detail_' + realIdx;
+    return `
+      <div class="card" style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div>
+            <strong>${s.fecha}</strong>
+            <span style="color:#666;margin-left:8px;font-size:13px">${s.jugadores} jugadores</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="font-size:13px">
+              🥇 <strong>${s.campeonIndiv || '—'}</strong>
+              ${s.campeonParejas ? ` &nbsp;🤝 <strong>${s.campeonParejas}</strong>` : ''}
+            </span>
+            <button onclick="toggleSesionDetail('${expandId}')" class="btn btn-sm">👁 Ver</button>
+            <button onclick="borrarSesion(${realIdx})" class="btn btn-sm btn-danger">✕</button>
+          </div>
+        </div>
+        <div id="${expandId}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid #eee;font-size:13px;color:#444">
+          <div><b>Fecha:</b> ${s.fecha}</div>
+          <div><b>Jugadores:</b> ${s.jugadores}</div>
+          <div><b>Campeón Individual:</b> ${s.campeonIndiv || '—'}</div>
+          <div><b>Campeones Parejas:</b> ${s.campeonParejas || '—'}</div>
+          ${s.formato ? `<div><b>Formato:</b> ${s.formato} juego(s)</div>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Pagination controls
+  const pagination = totalPages > 1 ? `
+    <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:12px">
+      <button class="btn btn-sm" onclick="cambiarPaginaHistorial(-1)" ${historialPage === 0 ? 'disabled' : ''}>← Anterior</button>
+      <span style="font-size:13px;color:#666">Página ${historialPage + 1} de ${totalPages} &nbsp;·&nbsp; ${invertidas.length} sesiones</span>
+      <button class="btn btn-sm" onclick="cambiarPaginaHistorial(1)" ${historialPage === totalPages - 1 ? 'disabled' : ''}>Siguiente →</button>
+    </div>
+  ` : `<div style="font-size:12px;color:#aaa;margin-top:8px;text-align:right">${invertidas.length} sesión${invertidas.length > 1 ? 'es' : ''} en total</div>`;
+
+  container.innerHTML = rows + pagination;
+}
+
+function cambiarPaginaHistorial(dir) {
+  historialPage += dir;
+  renderWelcome();
+}
+
+function toggleSesionDetail(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function borrarSesion(idx) {
+  if (!confirm('¿Eliminar esta sesión del historial?')) return;
+  ligaData.sesiones.splice(idx, 1);
+  saveLiga();
+  renderWelcome();
+}
+
+// ===================== TAB 1: JUGADORES =====================
+function renderJugadores() {
+  renderPlayerList();
+}
+
+function togglePresente(idx) {
+  torneoState.jugadores[idx].presente = !torneoState.jugadores[idx].presente;
+  saveState();
+  renderPlayerList();
+}
+
+function editarNombre(idx) {
+  document.getElementById('playerName_' + idx).style.display = 'none';
+  document.getElementById('editBtn_' + idx).style.display = 'none';
+  const input = document.getElementById('playerNameInput_' + idx);
+  const saveBtn = document.getElementById('saveBtn_' + idx);
+  input.style.display = 'block';
+  saveBtn.style.display = 'inline-flex';
+  input.focus();
+  input.select();
+}
+
+function cancelarNombre(idx) {
+  const j = torneoState.jugadores[idx];
+  document.getElementById('playerNameInput_' + idx).value = j.nombre;
+  document.getElementById('playerNameInput_' + idx).style.display = 'none';
+  document.getElementById('saveBtn_' + idx).style.display = 'none';
+  document.getElementById('playerName_' + idx).style.display = '';
+  document.getElementById('editBtn_' + idx).style.display = '';
+}
+
+function guardarNombre(idx) {
+  const nuevo = document.getElementById('playerNameInput_' + idx).value.trim().toUpperCase();
+  const j = torneoState.jugadores[idx];
+  const viejo = j.nombre;
+  if (!nuevo) { cancelarNombre(idx); return; }
+  if (nuevo === viejo) { cancelarNombre(idx); return; }
+  if (torneoState.jugadores.find((p, i) => i !== idx && p.nombre === nuevo)) {
+    alert('Ya existe un jugador con ese nombre.'); return;
+  }
+
+  // 1. Rename in ELO history (key rename)
+  if (ligaData.jugadores[viejo]) {
+    ligaData.jugadores[nuevo] = ligaData.jugadores[viejo];
+    delete ligaData.jugadores[viejo];
+  }
+
+  // 2. Update session history (campeonIndiv, campeonParejas)
+  (ligaData.sesiones || []).forEach(s => {
+    if (s.campeonIndiv === viejo) s.campeonIndiv = nuevo;
+    if (s.campeonParejas && s.campeonParejas.includes(viejo)) {
+      s.campeonParejas = s.campeonParejas.split(viejo).join(nuevo);
+    }
+  });
+  saveLiga();
+
+  // 3. Update active partidos (individuales)
+  (torneoState.partidos || []).forEach(p => {
+    if (p.jugador1 === viejo) p.jugador1 = nuevo;
+    if (p.jugador2 === viejo) p.jugador2 = nuevo;
+    if (p.ganador === viejo) p.ganador = nuevo;
+  });
+
+  // 4. Update parejas jugadores arrays and names
+  (torneoState.parejas || []).forEach(pa => {
+    pa.jugadores = pa.jugadores.map(n => n === viejo ? nuevo : n);
+    pa.nombre = pa.nombre.split(viejo).join(nuevo);
+  });
+  (torneoState.partidosParejas || []).forEach(p => {
+    if (Array.isArray(p.jugador1)) p.jugador1 = p.jugador1.map(n => n === viejo ? nuevo : n);
+    if (Array.isArray(p.jugador2)) p.jugador2 = p.jugador2.map(n => n === viejo ? nuevo : n);
+    if (p.pareja1Nombre) p.pareja1Nombre = p.pareja1Nombre.split(viejo).join(nuevo);
+    if (p.pareja2Nombre) p.pareja2Nombre = p.pareja2Nombre.split(viejo).join(nuevo);
+    if (Array.isArray(p.ganador)) p.ganador = p.ganador.map(n => n === viejo ? nuevo : n);
+    else if (p.ganador === viejo) p.ganador = nuevo;
+  });
+
+  // 5. Rename in player object
+  j.nombre = nuevo;
+  saveState();
+  renderPlayerList();
+}
+
+function renderPlayerList() {
+  const list = document.getElementById('playerList');
+  if (!list) return;
+
+  list.innerHTML = torneoState.jugadores.map((j, idx) => {
+    const elo = getElo(j.nombre);
+    const isNew = !ligaData.jugadores[j.nombre];
+    const eloText = isNew ? `ELO: ${ELO_DEFAULT} (nuevo)` : `ELO: ${elo}`;
+    const presente = j.presente !== false; // default true
+
+    return `
+      <div class="player-entry" id="playerEntry_${idx}" style="opacity:${presente ? 1 : 0.45}">
+        <button onclick="togglePresente(${idx})" title="${presente ? 'Presente' : 'Ausente'}"
+          style="width:32px;height:32px;border-radius:50%;border:2px solid ${presente ? '#22C55E' : '#ccc'};
+                 background:${presente ? '#22C55E' : '#fff'};cursor:pointer;font-size:16px;
+                 flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:.15s">
+          ${presente ? '<span style="color:#fff;font-weight:bold;font-size:14px">✓</span>' : ''}
+        </button>
+        ${avatarEl(j.nombre, j.foto)}
+        <span class="player-name" id="playerName_${idx}">${j.nombre} <span class="elo-badge elo-tip" data-tip="Rating histórico. Sube al vencer rivales mejor rankeados. Se acumula entre sesiones.">${eloText}</span></span>
+        <input type="text" id="playerNameInput_${idx}"
+          style="display:none;flex:1;padding:4px 8px;border:2px solid #000;border-radius:6px;font-size:14px;font-weight:600"
+          value="${j.nombre}"
+          onkeydown="if(event.key==='Enter')guardarNombre(${idx});else if(event.key==='Escape')cancelarNombre(${idx})">
+        <button class="btn btn-sm" id="editBtn_${idx}" onclick="editarNombre(${idx})" title="Editar nombre">✏</button>
+        <button class="btn btn-sm" id="saveBtn_${idx}" style="display:none;background:#000;color:#fff" onclick="guardarNombre(${idx})" title="Guardar">✓</button>
+        <button class="btn btn-sm" onclick="toggleFotoInput(${idx})" title="Foto">📷</button>
+        <button class="btn btn-sm btn-danger" onclick="removePlayer(${idx})">✕</button>
+      </div>
+      <div id="fotoInput_${idx}" style="display:none;padding:4px 8px 8px;border:1px solid #eee;border-radius:0 0 6px 6px;margin-top:-6px;margin-bottom:4px">
+        <input type="url" placeholder="URL de foto (se convierte a base64)" id="fotoUrl_${idx}" style="font-size:12px">
+        <button class="btn btn-sm" style="margin-top:4px" onclick="loadFoto(${idx})">Cargar foto</button>
+        <span id="fotoStatus_${idx}" style="font-size:11px;color:#666;margin-left:8px"></span>
+      </div>
+    `;
+  }).join('');
+
+  const total = torneoState.jugadores.length;
+  const confirmados = torneoState.jugadores.filter(j => j.presente !== false).length;
+  document.getElementById('playerCount').innerHTML =
+    `<span style="color:#22C55E;font-weight:bold">${confirmados} confirmados</span>` +
+    ` de ${total} jugadores (máx. 30) &nbsp;·&nbsp; <a href="#" onclick="toggleTodos();return false" style="color:#000;font-size:12px">seleccionar todos</a>`;
+  renderEstimador();
+}
+
+function toggleTodos() {
+  const hayAlgunoFuera = torneoState.jugadores.some(j => j.presente === false);
+  torneoState.jugadores.forEach(j => j.presente = hayAlgunoFuera ? true : false);
+  saveState();
+  renderPlayerList();
+}
+
+function toggleFotoInput(idx) {
+  const el = document.getElementById(`fotoInput_${idx}`);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function loadFoto(idx) {
+  const url = document.getElementById(`fotoUrl_${idx}`).value.trim();
+  if (!url) return;
+  const status = document.getElementById(`fotoStatus_${idx}`);
+  status.textContent = 'Cargando...';
+
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64; canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, 64, 64);
+    torneoState.jugadores[idx].foto = canvas.toDataURL('image/jpeg', 0.8);
+    status.textContent = '✓ Cargada';
+    status.style.color = '#22C55E';
+    saveState();
+    renderPlayerList();
+  };
+  img.onerror = () => {
+    status.textContent = '✗ Error al cargar';
+    status.style.color = '#EF4444';
+  };
+  img.src = url;
+}
+
+function addPlayer() {
+  const input = document.getElementById('nuevoJugador');
+  const nombre = input.value.trim().toUpperCase();
+  if (!nombre) return;
+  if (torneoState.jugadores.length >= 30) { alert('Máximo 30 jugadores.'); return; }
+  if (torneoState.jugadores.find(j => j.nombre === nombre)) { alert('Jugador ya existe.'); return; }
+  torneoState.jugadores.push({ nombre, foto: null, seFue: false, presente: true });
+  input.value = '';
+  saveState();
+  renderPlayerList();
+}
+
+function removePlayer(idx) {
+  torneoState.jugadores.splice(idx, 1);
+  saveState();
+  renderPlayerList();
+}
+
+function changeMesas(d) {
+  const newVal = Math.max(1, Math.min(10, torneoState.mesas + d));
+  torneoState.mesas = newVal;
+  document.getElementById('mesasCount').textContent = newVal;
+  saveState();
+  renderEstimador();
+}
+
+function setFormato(f) {
+  torneoState.formato = parseInt(f);
+  saveState();
+  renderEstimador();
+}
+
+function confirmarFormato(f, radio) {
+  const msgs = {
+    3: 'Vas a cambiar a MEJOR DE 3 JUEGOS a 11.\n\nCada partido puede tomar hasta 3 juegos. El primero en ganar 2 gana el partido.\n\n¿Confirmar este formato?',
+    5: 'Vas a cambiar a MEJOR DE 5 JUEGOS a 11.\n\nCada partido puede tomar hasta 5 juegos. El primero en ganar 3 gana el partido.\n\n¿Confirmar este formato?'
+  };
+  if (confirm(msgs[f])) {
+    setFormato(f);
+  } else {
+    // Revert to 1
+    radio.checked = false;
+    document.querySelector('input[name=formato][value="1"]').checked = true;
+    setFormato(1);
+  }
+}
+
+// ===================== ESTIMADOR DE DURACIÓN =====================
+function fmtDuracion(min) {
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m > 0 ? `${h}h ${m}min` : `${h}h`;
+}
+
+function renderEstimador() {
+  const el = document.getElementById('estimadorRows');
+  if (!el) return;
+
+  const n = torneoState.jugadores.filter(j => j.presente === true).length;
+  const mesas = torneoState.mesas;
+  const minJuego = parseFloat(document.getElementById('minPorJuego')?.value) || 7;
+  const minEntre = parseFloat(document.getElementById('minEntrePartidos')?.value) || 1;
+
+  if (n < 2) {
+    el.innerHTML = '<p style="color:#666;font-size:13px">Agrega al menos 2 jugadores para ver el estimado.</p>';
+    return;
+  }
+
+  const totalPartidos = Math.floor(n * (n - 1) / 2);
+  const paralelo = Math.min(mesas, Math.floor(n / 2));
+  const slots = Math.ceil(totalPartidos / paralelo);
+
+  // Juegos promedio por formato: 1 → 1, MdJ3 → ~2.25, MdJ5 → ~3.6
+  const formatos = [
+    { val: 1, label: '1 juego a 11',    sub: 'recomendado',  juegosProm: 1 },
+    { val: 3, label: 'Mejor de 3 juegos', sub: 'competencia',   juegosProm: 2.25 },
+    { val: 5, label: 'Mejor de 5 juegos', sub: 'profesional',  juegosProm: 3.6 }
+  ];
+
+  const rows = formatos.map(f => {
+    const minPorPartido = f.juegosProm * minJuego;
+    const totalMin = Math.round(slots * minPorPartido + (slots - 1) * minEntre);
+    const totalJuegos = Math.round(totalPartidos * f.juegosProm);
+    const isSelected = torneoState.formato === f.val;
+
+    return `
+      <div style="border:1px solid #eee;border-radius:8px;padding:12px 16px;margin-bottom:8px;
+                  background:${isSelected ? '#f9f9f9' : '#fff'};display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div>
+          <span style="font-weight:bold;font-size:15px">${f.label}</span>
+          <span style="color:#999;font-size:11px;margin-left:6px">${f.sub}</span>
+          <div style="font-size:12px;color:#888;margin-top:3px">
+            ${totalJuegos} juegos · ${mesas} mesa${mesas>1?'s':''}
+          </div>
+        </div>
+        <div style="font-size:22px;font-weight:900;color:#000">${fmtDuracion(totalMin)}</div>
+      </div>
+    `;
+  }).join('');
+
+  el.innerHTML = rows;
+}
+
+// ===================== FIXTURE ANIMATION =====================
+function showFixtureAnimation(nJugadores, callback) {
+  const totalPartidos = Math.floor(nJugadores * (nJugadores - 1) / 2);
+  const steps = [
+    { icon: '👥', text: 'Agregando jugadores',  detail: `${nJugadores} confirmados` },
+    { icon: '🎲', text: 'Sorteando orden',       detail: 'randomizando matchups...' },
+    { icon: '🏓', text: 'Haciendo matchs',       detail: `${totalPartidos} partidos generados` },
+    { icon: '🔍', text: 'Revisando fixture',     detail: 'sin conflictos detectados' },
+    { icon: '✅', text: 'Auditando',             detail: 'todo en orden' },
+    { icon: '🚀', text: 'Publicando',            detail: '¡listo para jugar!' },
+  ];
+  const durations = [420, 520, 480, 380, 320, 600];
+
+  const overlay = document.createElement('div');
+  overlay.id = 'fixtureOverlay';
+  overlay.style.cssText = `
+    position:fixed;inset:0;background:#000;z-index:500;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    opacity:0;transition:opacity .25s;
+  `;
+
+  overlay.innerHTML = `
+    <div style="color:#fff;font-size:36px;font-weight:900;letter-spacing:-1px;margin-bottom:8px">🏓 PING PONG XTMO</div>
+    <div style="color:#666;font-size:14px;margin-bottom:48px;letter-spacing:2px;text-transform:uppercase">Generando fixture</div>
+    <div id="animSteps" style="width:340px"></div>
+    <div style="margin-top:36px;width:340px;height:3px;background:#222;border-radius:2px;overflow:hidden">
+      <div id="animBar" style="height:100%;background:#FACC15;width:0%;transition:width .4s ease"></div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => { overlay.style.opacity = '1'; });
+
+  const stepsEl = document.getElementById('animSteps');
+  const bar = document.getElementById('animBar');
+  let current = 0;
+
+  function showNext() {
+    if (current >= steps.length) {
+      // All done — fade out and run callback
+      overlay.style.opacity = '0';
+      setTimeout(() => { overlay.remove(); callback(); }, 280);
+      return;
+    }
+
+    const s = steps[current];
+    const pct = Math.round(((current + 1) / steps.length) * 100);
+    bar.style.width = pct + '%';
+
+    // Add new step row
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:12px;margin-bottom:14px;opacity:0;transform:translateY(8px);transition:all .22s ease';
+    row.innerHTML = `
+      <span style="font-size:20px;width:28px;text-align:center">${s.icon}</span>
+      <div>
+        <div style="color:#fff;font-size:15px;font-weight:600">${s.text}</div>
+        <div style="color:#555;font-size:11px;margin-top:1px" id="animDetail_${current}"></div>
+      </div>
+      <span id="animCheck_${current}" style="margin-left:auto;color:#555;font-size:16px">…</span>
+    `;
+    stepsEl.appendChild(row);
+
+    requestAnimationFrame(() => {
+      row.style.opacity = '1';
+      row.style.transform = 'translateY(0)';
+    });
+
+    // After half the duration, show detail text
+    setTimeout(() => {
+      const det = document.getElementById(`animDetail_${current}`);
+      if (det) det.textContent = s.detail;
+    }, durations[current] * 0.45);
+
+    // After duration, mark done and move on
+    setTimeout(() => {
+      const chk = document.getElementById(`animCheck_${current}`);
+      if (chk) { chk.textContent = '✓'; chk.style.color = '#22C55E'; }
+      current++;
+      setTimeout(showNext, current < steps.length ? 80 : 300);
+    }, durations[current]);
+  }
+
+  showNext();
+}
+
+// ===================== FIXTURE GENERATION =====================
+function generarFixture() {
+  const activos = torneoState.jugadores.filter(j => j.presente === true);
+  if (activos.length < 6) { alert(`Mínimo 6 jugadores confirmados. Ahora hay ${activos.length}.`); return; }
+
+  showFixtureAnimation(activos.length, () => {
+    // Shuffle aleatorio en cada generación
+    const shuffled = [...activos].sort(() => Math.random() - 0.5);
+    const names = shuffled.map(j => j.nombre);
+    torneoState.partidos = buildPartidos(names, 'individuales');
+    torneoState.partidosParejas = [];
+    torneoState.parejas = [];
+    torneoState.fase = 'individuales';
+    torneoState.startDate = new Date().toISOString().split('T')[0];
+    timers = {};
+    filtroJugador = null;
+    document.getElementById('tab3').disabled = true;
+    saveState();
+    updateFooterBtns();
+    switchTab(2);
+  });
+}
+
+function cargarDemo() {
+  torneoState.jugadores = [
+    'EDDY','DON RICARDO','JOSE ANGEL','GERARDO HZD','FER SADA',
+    'CHUY','CHALO','JEAN POUL','ALEXX','DANIEL'
+  ].map(n => ({ nombre: n, foto: null, seFue: false, presente: true }));
+  torneoState.mesas = 3;
+  torneoState.formato = 3;
+  document.querySelector('input[name=formato][value="3"]').checked = true;
+  renderPlayerList();
+  document.getElementById('mesasCount').textContent = 3;
+  saveState();
+}
+
+// ===================== TAB 2: INDIVIDUALES =====================
+function renderIndividuales() {
+  const container = document.getElementById('individualesContent');
+  if (!container) return;
+
+  if (torneoState.fase === 'config') {
+    container.innerHTML = '<div class="card"><p style="color:#666">Configura jugadores y genera el fixture primero.</p></div>';
+    return;
+  }
+
+  const partidos = torneoState.partidos;
+  const standings = getStandings(partidos, torneoState.jugadores.filter(j => !j.seFue));
+
+  // Check champion
+  let banner = '';
+  if (torneoState.fase === 'individuales_done' || torneoState.fase === 'done') {
+    const campeon = standings[0];
+    const segundo = standings[1];
+    banner = `<div class="champion-banner">
+      <div style="display:flex;justify-content:center;gap:24px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+        <div style="text-align:center">
+          <div style="font-size:28px">🏆</div>
+          <div style="font-size:20px;font-weight:900">${campeon ? campeon.nombre : '—'}</div>
+          <div style="font-size:12px;color:#aaa;margin-top:2px">${campeon ? campeon.pg + ' victorias' : ''}</div>
+        </div>
+        ${segundo ? `<div style="text-align:center;opacity:.85">
+          <div style="font-size:22px">🥈</div>
+          <div style="font-size:16px;font-weight:700">${segundo.nombre}</div>
+          <div style="font-size:12px;color:#aaa;margin-top:2px">${segundo.pg} victorias</div>
+        </div>` : ''}
+      </div>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        <button onclick="mostrarPreParejas()"
+          style="padding:9px 18px;border:2px solid #fff;border-radius:6px;background:#fff;color:#000;cursor:pointer;font-size:14px;font-weight:700">
+          🎉 GENERAR PAREJAS
+        </button>
+        <button onclick="exportarCanvas('individuales')"
+          style="padding:9px 18px;border:2px solid #fff;border-radius:6px;background:transparent;color:#fff;cursor:pointer;font-size:14px;font-weight:700">
+          📥 Descargar cuadro
+        </button>
+      </div>
+    </div>`;
+  }
+
+  // Player chips
+  const busy = getJugadoresOcupados(partidos);
+  const chips = torneoState.jugadores.map(j => {
+    const isFiltered = filtroJugador === j.nombre;
+    let cls = 'player-chip';
+    if (j.seFue) cls += ' chip-retired';
+    else if (busy.has(j.nombre)) cls += ' chip-playing';
+    else cls += ' chip-done';
+    if (isFiltered) cls += ' chip-filtered';
+    const elo = getElo(j.nombre);
+    return `<span class="${cls}" onclick="${j.seFue ? '' : `setFiltroJugador('${j.nombre}')`}" style="${j.seFue ? '' : 'cursor:pointer'}">
+      ${avatarEl(j.nombre, j.foto)}
+      ${j.nombre} <span class="elo-badge elo-tip" data-tip="Rating histórico. Sube al vencer rivales mejor rankeados.">ELO:${elo}</span>
+      ${!j.seFue && torneoState.fase === 'individuales' ? `<button style="background:none;border:none;cursor:pointer;color:inherit;font-size:12px;margin-left:4px" onclick="event.stopPropagation();retirarJugador('${j.nombre}')" title="Retirar">⋯</button>` : ''}
+    </span>`;
+  }).join('');
+
+  const filtroLabel = filtroJugador
+    ? `<div style="font-size:11px;color:#666;margin-top:8px">Filtrando: <strong>${filtroJugador}</strong> — <a href="#" onclick="setFiltroJugador(null);return false" style="color:#000">Ver todos</a></div>`
+    : '';
+
+  container.innerHTML = `
+    <div class="indiv-header">
+      ${banner}
+    </div>
+    <div class="indiv-body">
+      <div id="matchCards" style="padding:12px 12px 80px 0;border-right:1px solid #eee"></div>
+      <div id="miniTabla" class="indiv-tabla"></div>
+    </div>
+  `;
+
+  renderMatchCards('matchCards', partidos, 'individuales');
+  renderMiniTabla('miniTabla', standings);
+
+  // Chips debajo de la tabla en la columna derecha
+  const tablaEl = document.getElementById('miniTabla');
+  if (tablaEl) {
+    const chipsDiv = document.createElement('div');
+    chipsDiv.style.cssText = 'padding:12px 0 8px;border-top:1px solid #eee;margin-top:8px';
+    chipsDiv.innerHTML = `
+      <div style="font-size:11px;font-weight:600;color:#999;letter-spacing:1px;margin-bottom:6px;text-transform:uppercase">Jugadores</div>
+      ${filtroLabel}
+      <div>${chips}</div>
+    `;
+    tablaEl.appendChild(chipsDiv);
+  }
+}
+
+function matchNum(m, partidos) {
+  return partidos.indexOf(m) + 1;
+}
+
+function matchInvolves(m, nombre) {
+  const j1 = Array.isArray(m.jugador1) ? m.jugador1 : [m.jugador1];
+  const j2 = Array.isArray(m.jugador2) ? m.jugador2 : [m.jugador2];
+  const n1 = m.pareja1Nombre || j1.join('/');
+  const n2 = m.pareja2Nombre || j2.join('/');
+  return j1.includes(nombre) || j2.includes(nombre) || n1 === nombre || n2 === nombre;
+}
+
+function renderMatchCards(containerId, partidos, tipo) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+
+  const filtrar = p => !filtroJugador || matchInvolves(p, filtroJugador);
+
+  const playing = partidos.filter(p => p.estado === 'jugando' && filtrar(p));
+  const pending = partidos.filter(p => p.estado === 'por_jugar' && filtrar(p));
+  const done = partidos.filter(p => (p.estado === 'jugado' || p.estado === 'walkover') && filtrar(p));
+
+  let html = '';
+
+  if (playing.length > 0) {
+    html += '<h3 style="margin-bottom:8px">En juego</h3>';
+    playing.forEach(m => { html += renderPlayingCard(m, tipo, matchNum(m, partidos)); });
+  }
+
+  if (pending.length > 0) {
+    const mostrar = _showAllPending ? pending : pending.slice(0, 2);
+    html += `<h3 style="margin-top:16px;margin-bottom:8px">Siguientes <span style="font-size:12px;color:#999;font-weight:normal">(${pending.length} pendientes)</span></h3>`;
+    mostrar.forEach(m => { html += renderPendingCard(m, tipo, matchNum(m, partidos)); });
+    if (!_showAllPending && pending.length > 2) {
+      html += `<button class="btn btn-sm" style="margin-top:6px;width:100%" onclick="mostrarTodosPendientes()">
+        Ver ${pending.length - 2} partidos más ▾
+      </button>`;
+    } else if (_showAllPending && pending.length > 2) {
+      html += `<button class="btn btn-sm" style="margin-top:6px;width:100%;color:#999" onclick="ocultarPendientes()">
+        Mostrar solo los siguientes 2 ▴
+      </button>`;
+    }
+  }
+
+  if (done.length > 0) {
+    html += `<h3 style="margin-top:16px;margin-bottom:8px">Terminados (${done.length})</h3>`;
+    done.forEach(m => { html += renderDoneCard(m, tipo, matchNum(m, partidos)); });
+  }
+
+  el.innerHTML = html;
+
+  // Restart timers for playing matches
+  playing.forEach(m => {
+    if (!timers[m.id]) {
+      startMatchTimer(m.id);
+    }
+  });
+}
+
+function getName(val) {
+  return Array.isArray(val) ? val.join(' / ') : val;
+}
+
+function renderPlayingCard(m, tipo, num) {
+  const n1 = m.pareja1Nombre || getName(m.jugador1);
+  const n2 = m.pareja2Nombre || getName(m.jugador2);
+  const p1 = getPlayerData(Array.isArray(m.jugador1) ? m.jugador1[0] : m.jugador1);
+  const p2 = getPlayerData(Array.isArray(m.jugador2) ? m.jugador2[0] : m.jugador2);
+  const { pts1, pts2 } = m.juegoActual;
+  const valid = isGameValid(pts1, pts2);
+  const w1 = countWins(m.juegos, 1);
+  const w2 = countWins(m.juegos, 2);
+  const need = gamesNeeded();
+  const timerSec = getElapsed(m.id);
+  const timerClass = timerSec > 900 ? 'timer timer-warn' : 'timer';
+  const gameNum = m.juegos.length + 1;
+
+  const historyHtml = m.juegos.length > 0
+    ? `<div style="text-align:center;font-size:11px;color:#9CA3AF;margin-bottom:6px">${m.juegos.map((g,i)=>`J${i+1}: ${g.pts1}–${g.pts2}`).join(' &nbsp;|&nbsp; ')}</div>`
+    : '';
+
+  const gamesHtml = torneoState.formato > 1
+    ? `<div style="display:flex;justify-content:center;align-items:center;gap:6px;margin-bottom:12px">
+        ${Array.from({length:need},(_,i)=>`<span style="width:16px;height:16px;border-radius:50%;border:2px solid #fff;background:${i<w1?'#fff':'transparent'};display:inline-block"></span>`).join('')}
+        <span style="color:#555;font-size:12px;margin:0 10px">Juego ${gameNum} de ${torneoState.formato}</span>
+        ${Array.from({length:need},(_,i)=>`<span style="width:16px;height:16px;border-radius:50%;border:2px solid #fff;background:${i<w2?'#fff':'transparent'};display:inline-block"></span>`).join('')}
+      </div>`
+    : '';
+
+  return `
+    <div class="card-playing" id="match_${m.id}">
+
+      <!-- Cabecera -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <span style="font-size:12px;color:#555;font-weight:bold;letter-spacing:1px"><span style="background:#fff;color:#000;border-radius:4px;padding:1px 7px;margin-right:6px;font-size:13px">#${num||''}</span>MESA ${m.mesa}${torneoState.formato>1?' · Mejor de '+torneoState.formato:''}</span>
+        <span id="timer_${m.id}" class="${timerClass}">${formatTime(timerSec)}</span>
+      </div>
+
+      ${historyHtml}
+      ${gamesHtml}
+
+      <!-- Nombres -->
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:4px;margin-bottom:16px">
+        <div style="text-align:center">
+          <div style="margin-bottom:6px">${avatarEl(n1, p1.foto, 'lg')}</div>
+          <div style="font-size:14px;font-weight:bold;color:#fff;word-break:break-word">${n1}</div>
+        </div>
+        <div style="color:#333;font-size:16px;font-weight:bold;padding:0 8px">VS</div>
+        <div style="text-align:center">
+          <div style="margin-bottom:6px">${avatarEl(n2, p2.foto, 'lg')}</div>
+          <div style="font-size:14px;font-weight:bold;color:#fff;word-break:break-word">${n2}</div>
+        </div>
+      </div>
+
+      <!-- BOTONES + MARCADOR COMPACTO -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+          <button onclick="addPt('${m.id}',1,'${tipo}')"
+            style="width:100%;height:48px;font-size:30px;font-weight:900;background:#fff;color:#000;border:none;border-radius:10px;cursor:pointer;line-height:1">+</button>
+          <input type="number" min="0" max="99" value="${pts1}"
+            class="score-num-input"
+            style="font-size:60px;line-height:1;height:72px"
+            oninput="setScoreFromInput('${m.id}',1,'${tipo}',this)"
+            onclick="this.select()"
+            inputmode="numeric">
+          <button onclick="subPt('${m.id}',1,'${tipo}')"
+            style="width:100%;height:36px;font-size:22px;font-weight:900;background:transparent;color:#555;border:2px solid #333;border-radius:10px;cursor:pointer;line-height:1">−</button>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+          <button onclick="addPt('${m.id}',2,'${tipo}')"
+            style="width:100%;height:48px;font-size:30px;font-weight:900;background:#fff;color:#000;border:none;border-radius:10px;cursor:pointer;line-height:1">+</button>
+          <input type="number" min="0" max="99" value="${pts2}"
+            class="score-num-input"
+            style="font-size:60px;line-height:1;height:72px"
+            oninput="setScoreFromInput('${m.id}',2,'${tipo}',this)"
+            onclick="this.select()"
+            inputmode="numeric">
+          <button onclick="subPt('${m.id}',2,'${tipo}')"
+            style="width:100%;height:36px;font-size:22px;font-weight:900;background:transparent;color:#555;border:2px solid #333;border-radius:10px;cursor:pointer;line-height:1">−</button>
+        </div>
+      </div>
+
+      <!-- Confirmar / resetear -->
+      <div id="confirmArea_${m.id}" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;align-items:center">
+        <button onclick="resetJuego('${m.id}','${tipo}')"
+          style="padding:7px 12px;border:1px solid #444;border-radius:6px;background:transparent;color:#9CA3AF;cursor:pointer;font-size:12px">↺ Resetear</button>
+        ${valid
+          ? `<button onclick="confirmarJuego('${m.id}','${tipo}')" class="btn-confirm">
+              ✓ CONFIRMAR &nbsp; ${pts1} – ${pts2}
+            </button>`
+          : `<span style="font-size:12px;color:#555">${pts1===0&&pts2===0?'Presiona + para sumar puntos':'Necesitas ventaja de 2 puntos'}</span>`
+        }
+      </div>
+
+    </div>
+  `;
+}
+
+function renderPendingCard(m, tipo, num) {
+  const n1 = m.pareja1Nombre || getName(m.jugador1);
+  const n2 = m.pareja2Nombre || getName(m.jugador2);
+  const p1 = getPlayerData(Array.isArray(m.jugador1) ? m.jugador1[0] : m.jugador1);
+  const p2 = getPlayerData(Array.isArray(m.jugador2) ? m.jugador2[0] : m.jugador2);
+
+  const busy = getJugadoresOcupados(tipo === 'individuales' ? torneoState.partidos : torneoState.partidosParejas);
+  const retired = new Set(torneoState.jugadores.filter(j => j.seFue).map(j => j.nombre));
+  const mesa = getMesaLibre(tipo === 'individuales' ? torneoState.partidos : torneoState.partidosParejas);
+
+  const j1s = Array.isArray(m.jugador1) ? m.jugador1 : [m.jugador1];
+  const j2s = Array.isArray(m.jugador2) ? m.jugador2 : [m.jugador2];
+  const allPlayers = [...j1s, ...j2s];
+
+  const canStart = mesa && allPlayers.every(j => !busy.has(j) && !retired.has(j));
+
+  return `
+    <div class="card" style="opacity:${canStart ? 1 : 0.7}">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-size:13px;font-weight:900;color:#ccc;min-width:28px;text-align:center">${num||''}</span>
+        ${avatarEl(n1, p1.foto)}
+        <strong>${n1}</strong>
+        <span style="color:#666">vs</span>
+        ${avatarEl(n2, p2.foto)}
+        <strong>${n2}</strong>
+        <span style="margin-left:auto">
+          <button class="btn btn-sm${canStart ? ' btn-primary' : ''}"
+            onclick="iniciarPartido('${m.id}','${tipo}')"
+            ${canStart ? '' : 'disabled'}
+            title="${canStart ? 'Iniciar partido' : 'Jugador ocupado o sin mesa disponible'}">
+            ▶ Iniciar
+          </button>
+        </span>
+      </div>
+    </div>
+  `;
+}
+
+function renderDoneCard(m, tipo, num) {
+  const n1 = m.pareja1Nombre || getName(m.jugador1);
+  const n2 = m.pareja2Nombre || getName(m.jugador2);
+
+  if (m.estado === 'walkover') {
+    const gn = m.pareja1Nombre ? (Array.isArray(m.ganador) ? m.ganador.join('/') : m.ganador) : getName(m.ganador);
+    return `<div class="card-wo"><span style="color:#ccc;margin-right:8px;font-weight:900">${num||''}</span>${n1} vs ${n2} — <strong>${gn}</strong> ganó (W.O.)</div>`;
+  }
+
+  const gn = m.pareja1Nombre ? (Array.isArray(m.ganador) ? m.pareja1Nombre : (m.ganador === m.jugador1 || (Array.isArray(m.jugador1) && m.jugador1.join('/') === m.ganador.join('/')) ? m.pareja1Nombre : m.pareja2Nombre)) : getName(m.ganador);
+  // Mostrar puntos reales por juego: "11–7" para 1 juego, "11–7, 6–11, 11–9" para best-of
+  const scoreStr = m.juegos.map(g => `${g.pts1}–${g.pts2}`).join(' · ');
+  const dur = m.duracion ? ` (${formatTime(m.duracion)})` : '';
+
+  return `
+    <div class="card-done">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <span><span style="font-size:13px;font-weight:900;color:#ccc;margin-right:8px">${num||''}</span>${n1} <strong style="color:#22C55E">vs</strong> ${n2}</span>
+        <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <strong style="color:#22C55E">${gn}</strong>
+          <span style="color:#666;font-size:12px;font-family:monospace">${scoreStr}</span>
+          <span style="color:#aaa;font-size:11px">${dur}</span>
+          <button class="btn btn-sm" onclick="editarPartido('${m.id}','${tipo}')" title="Editar partido">✏ Editar</button>
+        </span>
+      </div>
+    </div>
+  `;
+}
+
+function renderMiniTabla(containerId, standings) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+
+  // Podio top 2
+  const top1 = standings[0];
+  const top2 = standings[1];
+  const podioHtml = standings.length >= 1 && top1.pj > 0 ? `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">
+      ${top1 ? `<div style="background:#000;color:#fff;border-radius:8px;padding:8px 10px;text-align:center">
+        <div style="font-size:16px">🥇</div>
+        <div style="font-size:11px;font-weight:bold;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${top1.nombre}</div>
+        <div style="font-size:18px;font-weight:900;color:#FACC15">${top1.pts}<span style="font-size:10px;color:#aaa;margin-left:2px">pts</span></div>
+      </div>` : ''}
+      ${top2 ? `<div style="background:#f0f0f0;border-radius:8px;padding:8px 10px;text-align:center">
+        <div style="font-size:16px">🥈</div>
+        <div style="font-size:11px;font-weight:bold;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${top2.nombre}</div>
+        <div style="font-size:18px;font-weight:900">${top2.pts}<span style="font-size:10px;color:#999;margin-left:2px">pts</span></div>
+      </div>` : ''}
+    </div>
+  ` : '';
+
+  el.innerHTML = `
+    <h3 style="margin-bottom:8px;font-size:15px">Tabla en vivo</h3>
+    ${podioHtml}
+    <table style="font-size:12px">
+      <thead><tr>
+        <th>#</th>
+        <th>Jugador</th>
+        <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Ganados">PG</span></th>
+        <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Perdidos">PP</span></th>
+        <th><span class="elo-tip" style="color:#fff" data-tip="Puntos de torneo (2 por victoria)">Pts</span></th>
+        <th><span class="elo-tip" style="color:#fff" data-tip="Puntos a Favor anotados en total">PF</span></th>
+      </tr></thead>
+      <tbody>
+        ${standings.map((s, i) => `
+          <tr style="${i === 0 ? 'background:#fffbeb;font-weight:bold' : i === 1 ? 'background:#f9f9f9' : ''}">
+            <td style="width:24px;text-align:center;font-weight:bold;color:${i===0?'#D4AF37':i===1?'#A8A9AD':'#666'}">
+              ${i===0?'🥇':i===1?'🥈':i+1}
+            </td>
+            <td>
+              <div style="display:flex;align-items:center;gap:5px">
+                ${avatarEl(s.nombre, getPlayerData(s.nombre).foto)}
+                <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px">${s.nombre}</span>
+              </div>
+            </td>
+            <td style="text-align:center">${s.pg}</td>
+            <td style="text-align:center;color:#999">${s.pp}</td>
+            <td style="text-align:center"><strong style="color:${i===0?'#22C55E':'inherit'}">${s.pts}</strong></td>
+            <td style="text-align:center;color:#666">${s.gf}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// ===================== TAB 3: PAREJAS =====================
+function renderParejas() {
+  const container = document.getElementById('parejasContent');
+  if (!container) return;
+
+  if (torneoState.fase !== 'parejas' && torneoState.fase !== 'done') {
+    container.innerHTML = `
+      <div class="card">
+        <p style="color:#666">Las parejas se generan automáticamente al completar el torneo individual.</p>
+        ${torneoState.fase === 'individuales_done' ? '<button class="btn btn-primary" onclick="mostrarPreParejas()">🎉 Generar Parejas</button>' : ''}
+      </div>
+    `;
+    return;
+  }
+
+  const partidos = torneoState.partidosParejas;
+  const parejas = torneoState.parejas;
+  const standings = getStandings(partidos, parejas.map(p => p.nombre));
+
+  let banner = '';
+  if (torneoState.fase === 'done') {
+    const camp = standings[0];
+    const segundo = standings[1];
+    banner = `<div class="champion-banner">
+      <div style="display:flex;justify-content:center;gap:24px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+        <div style="text-align:center">
+          <div style="font-size:28px">🏆</div>
+          <div style="font-size:18px;font-weight:900">${camp ? camp.nombre : '—'}</div>
+          <div style="font-size:12px;color:#aaa;margin-top:2px">${camp ? camp.pg + ' victorias' : ''}</div>
+        </div>
+        ${segundo ? `<div style="text-align:center;opacity:.85">
+          <div style="font-size:22px">🥈</div>
+          <div style="font-size:15px;font-weight:700">${segundo.nombre}</div>
+          <div style="font-size:12px;color:#aaa;margin-top:2px">${segundo.pg} victorias</div>
+        </div>` : ''}
+      </div>
+      <button onclick="exportarCanvas('parejas')"
+        style="padding:9px 18px;border:2px solid #fff;border-radius:6px;background:transparent;color:#fff;cursor:pointer;font-size:14px;font-weight:700">
+        📥 Descargar cuadro
+      </button>
+    </div>`;
+  }
+
+  const busy = getJugadoresOcupados(partidos);
+  const chips = parejas.map(pa => {
+    const isBusy = pa.jugadores.some(j => busy.has(j));
+    return `<span class="player-chip ${isBusy ? 'chip-playing' : ''}">${avatarEl(pa.nombre, pa.foto)} ${pa.nombre}</span>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="indiv-header">
+      ${banner}
+    </div>
+    <div class="indiv-body">
+      <div id="parejasMatchCards" style="padding:12px 12px 80px 0;border-right:1px solid #eee"></div>
+      <div id="parejasTabla" class="indiv-tabla"></div>
+    </div>
+  `;
+
+  renderMatchCards('parejasMatchCards', partidos, 'parejas');
+  renderMiniTabla('parejasTabla', standings);
+
+  // Chips debajo de la tabla en columna derecha
+  const tablaEl = document.getElementById('parejasTabla');
+  if (tablaEl) {
+    const chipsDiv = document.createElement('div');
+    chipsDiv.style.cssText = 'padding:12px 0 8px;border-top:1px solid #eee;margin-top:8px';
+    chipsDiv.innerHTML = `
+      <div style="font-size:11px;font-weight:600;color:#999;letter-spacing:1px;margin-bottom:6px;text-transform:uppercase">Parejas</div>
+      <div>${chips}</div>
+    `;
+    tablaEl.appendChild(chipsDiv);
+  }
+}
+
+// ===================== TAB 4: TABLA =====================
+function renderTabla() {
+  const container = document.getElementById('tablaContent');
+  if (!container) return;
+
+  const hasIndiv = torneoState.partidos && torneoState.partidos.length > 0;
+  const hasParejas = torneoState.partidosParejas && torneoState.partidosParejas.length > 0;
+
+  let html = `
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <button class="btn btn-primary" id="tabTabIndiv" onclick="showTablaSection('indiv')">Individuales</button>
+      <button class="btn" id="tabTabParejas" onclick="showTablaSection('parejas')">Parejas</button>
+      <button class="btn" onclick="copiarTabla()">📋 Copiar tabla</button>
+    </div>
+    <div id="tablaIndiv"></div>
+    <div id="tablaParejas" style="display:none"></div>
+  `;
+  container.innerHTML = html;
+
+  if (hasIndiv) {
+    const jugadores = torneoState.jugadores.map(j => j.nombre);
+    renderFullMatrix('tablaIndiv', torneoState.partidos, jugadores, 'individuales');
+  } else {
+    document.getElementById('tablaIndiv').innerHTML = '<p style="color:#666">No hay torneo iniciado.</p>';
+  }
+
+  if (hasParejas) {
+    const parejasNames = torneoState.parejas.map(p => p.nombre);
+    renderFullMatrix('tablaParejas', torneoState.partidosParejas, parejasNames, 'parejas');
+  }
+}
+
+function showTablaSection(sec) {
+  document.getElementById('tablaIndiv').style.display = sec === 'indiv' ? 'block' : 'none';
+  document.getElementById('tablaParejas').style.display = sec === 'parejas' ? 'block' : 'none';
+  document.getElementById('tabTabIndiv').className = sec === 'indiv' ? 'btn btn-primary' : 'btn';
+  document.getElementById('tabTabParejas').className = sec === 'parejas' ? 'btn btn-primary' : 'btn';
+}
+
+function renderFullMatrix(containerId, partidos, jugadores, tipo) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+
+  const standings = getStandings(partidos, jugadores);
+  const ordered = standings.map(s => s.nombre);
+
+  // Build lookup
+  const resultMap = {};
+  partidos.forEach(p => {
+    const n1 = p.pareja1Nombre || getName(p.jugador1);
+    const n2 = p.pareja2Nombre || getName(p.jugador2);
+    const key = `${n1}|${n2}`;
+    resultMap[key] = p;
+    resultMap[`${n2}|${n1}`] = { ...p, flipped: true };
+  });
+
+  const matrixHTML = `
+    <div style="overflow-x:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Jugador</th>
+            ${ordered.map((_, i) => `<th>${i+1}</th>`).join('')}
+            <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Jugados">PJ</span></th>
+            <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Ganados">PG</span></th>
+            <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Perdidos">PP</span></th>
+            <th><span class="elo-tip" style="color:#fff" data-tip="Puntos de torneo (2 por victoria)">Pts</span></th>
+            <th><span class="elo-tip" style="color:#fff" data-tip="Diferencia de puntos anotados vs recibidos">Dif</span></th>
+            <th><span class="elo-tip" style="color:#fff" data-tip="Rating histórico. Sube al vencer rivales mejor rankeados. Se acumula entre sesiones.">ELO</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${standings.map((s, ri) => {
+            const cells = ordered.map((opp, ci) => {
+              if (opp === s.nombre) return '<td style="background:#f0f0f0">—</td>';
+              const p = resultMap[`${s.nombre}|${opp}`];
+              if (!p) return '<td style="color:#ccc">·</td>';
+              if (p.estado === 'jugando') {
+                const pn1 = p.pareja1Nombre || getName(p.jugador1);
+                const pn2 = p.pareja2Nombre || getName(p.jugador2);
+                return `<td class="cell-playing elo-tip" data-tip="${pn1} vs ${pn2} — en juego" style="cursor:help">▶</td>`;
+              }
+              if (p.estado === 'por_jugar') return '<td></td>';
+              if (p.estado === 'walkover') return '<td class="cell-wo">W.O.</td>';
+
+              const gn = p.pareja1Nombre ? (p.flipped ? p.pareja2Nombre : p.pareja1Nombre) : getName(p.ganador);
+              const isWin = gn === s.nombre;
+              const scores = p.juegos.map(g => p.flipped ? `${g.pts2}-${g.pts1}` : `${g.pts1}-${g.pts2}`).join(', ');
+              // Loser score: sum of their points across all games
+              let loserDisplay;
+              if (torneoState.formato === 1) {
+                // 1 game: show their exact score
+                const g = p.juegos[0];
+                // Row player is jugador1 when !flipped, jugador2 when flipped
+                // So their score is pts1 when !flipped, pts2 when flipped
+                loserDisplay = g ? (p.flipped ? g.pts2 : g.pts1) : '?';
+              } else {
+                // Best of N: show games won by loser
+                const loserWins = p.juegos.filter(g => g.ganador === (isWin ? 2 : 1)).length;
+                loserDisplay = loserWins;
+              }
+              return `<td class="${isWin ? 'cell-win' : 'cell-lose'}" title="${scores}" style="font-weight:bold">
+                ${isWin ? 'G' : loserDisplay}
+              </td>`;
+            }).join('');
+
+            return `<tr style="${ri === 0 ? 'border:3px solid #000;font-weight:bold' : ''}">
+              <td>${ri+1}</td>
+              <td style="display:flex;align-items:center;gap:6px;min-width:120px">
+                ${avatarEl(s.nombre, getPlayerData(s.nombre).foto)}
+                ${s.nombre}
+              </td>
+              ${cells}
+              <td>${s.pj}</td><td>${s.pg}</td><td>${s.pp}</td>
+              <td><strong>${s.pts}</strong></td>
+              <td>${s.gf - s.gc >= 0 ? '+' : ''}${s.gf - s.gc}</td>
+              <td class="elo-badge elo-tip" data-tip="Rating histórico acumulado entre sesiones.">${getElo(s.nombre)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div style="margin-top:12px">
+      <span style="color:#666;font-size:13px">Pendientes: ${partidos.filter(p => p.estado === 'por_jugar').length}</span>
+      <button class="btn btn-sm" style="margin-left:12px" onclick="exportarCanvas('${tipo}')">📥 Descargar cuadro</button>
+    </div>
+  `;
+
+  el.innerHTML = matrixHTML;
+
+  // Hover fila + columna con contraste
+  el.querySelectorAll('tbody tr').forEach(row => {
+    row.addEventListener('mouseenter', function() {
+      this.classList.add('row-highlight');
+      const idx = Array.from(this.parentNode.children).indexOf(this);
+      el.querySelectorAll(`thead tr th:nth-child(${idx + 3}), tbody tr td:nth-child(${idx + 3})`).forEach(c => c.classList.add('col-highlight'));
+    });
+    row.addEventListener('mouseleave', function() {
+      this.classList.remove('row-highlight');
+      el.querySelectorAll('.col-highlight').forEach(c => c.classList.remove('col-highlight'));
+    });
+  });
+}
+
+function copiarTabla() {
+  const standings = getStandings(torneoState.partidos, torneoState.jugadores.map(j => j.nombre));
+  const text = standings.map((s, i) => `${i+1}. ${s.nombre} — ${s.pg}PG ${s.pp}PP ${s.pts}pts ELO:${getElo(s.nombre)}`).join('\n');
+  navigator.clipboard.writeText(text).then(() => alert('Tabla copiada al portapapeles'));
+}
+
+// ===================== TAB 5: TV MODE =====================
+
+// ===================== EXPORT CANVAS / PDF =====================
+function exportarCanvas(tipo) {
+  const canvas = generarCanvasExport(tipo);
+  const tituloSeccion = tipo === 'individuales' ? 'INDIVIDUALES' : 'PAREJAS';
+  const date = (() => { const n = new Date(); return n.toISOString().split('T')[0].replace(/-/g,'_') + '_' + String(n.getHours()).padStart(2,'0') + String(n.getMinutes()).padStart(2,'0'); })();
+  const link = document.createElement('a');
+  link.download = `PPTORNEO_${tituloSeccion}_${date}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+function exportarPDF(tipo) {
+  const canvas = generarCanvasExport(tipo);
+  const tituloSeccion = tipo === 'individuales' ? 'INDIVIDUALES' : 'PAREJAS';
+  const dataURL = canvas.toDataURL('image/png');
+  const win = window.open('', '_blank');
+  if (!win) { alert('Habilita ventanas emergentes para generar el PDF.'); return; }
+  win.document.write(`<!DOCTYPE html><html><head>
+    <title>Ping Pong XTMO - ${tituloSeccion}</title>
+    <style>
+      *{margin:0;padding:0;box-sizing:border-box}
+      body{background:#fff}
+      img{width:100%;display:block}
+      @media print{@page{margin:0.3cm;size:A4 landscape}body{margin:0}}
+    </style>
+  </head><body>
+    <img src="${dataURL}">
+    <script>window.onload=function(){setTimeout(function(){window.print()},250)}<\/script>
+  </body></html>`);
+  win.document.close();
+}
+
+function generarCanvasExport(tipo) {
+  const W = 1400;
+  const partidos = tipo === 'individuales' ? torneoState.partidos : torneoState.partidosParejas;
+  const jugadores = tipo === 'individuales'
+    ? torneoState.jugadores.map(j => j.nombre)
+    : torneoState.parejas.map(p => p.nombre);
+  const standings = getStandings(partidos, jugadores);
+  const n = standings.length;
+  const fecha = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
+  const tituloSeccion = tipo === 'individuales' ? 'INDIVIDUALES' : 'PAREJAS';
+
+  // Layout constants
+  const PAD = 48;
+  const HEADER_H = 160;
+  const PODIUM_H = n >= 1 ? 80 + Math.min(n, 3) * 90 : 0;
+  const ROW_H = 52;
+  const TABLE_HEADER_H = 44;
+  const TABLE_H = TABLE_HEADER_H + n * ROW_H + 8;
+  const FOOTER_H = 48;
+  const TOTAL_H = HEADER_H + PODIUM_H + 40 + TABLE_H + FOOTER_H + 20;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = TOTAL_H;
+  const ctx = canvas.getContext('2d');
+
+  // ── FONDO ──
+  ctx.fillStyle = '#F8F8F8';
+  ctx.fillRect(0, 0, W, TOTAL_H);
+
+  // ── HEADER negro ──
+  ctx.fillStyle = '#0A0A0A';
+  ctx.fillRect(0, 0, W, HEADER_H);
+
+  // Línea de acento amarilla
+  ctx.fillStyle = '#FACC15';
+  ctx.fillRect(0, HEADER_H - 4, W, 4);
+
+  // Logo / título
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = 'bold 52px system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('🏓  PING PONG XTMO', PAD, 70);
+
+  ctx.font = '22px system-ui, sans-serif';
+  ctx.fillStyle = '#AAAAAA';
+  ctx.fillText('Liga All Stars  ·  ' + fecha, PAD, 108);
+
+  // Sección badge (derecha)
+  const badgeW = 260;
+  ctx.fillStyle = '#FACC15';
+  ctx.beginPath();
+  ctx.roundRect(W - PAD - badgeW, 30, badgeW, 50, 8);
+  ctx.fill();
+  ctx.fillStyle = '#0A0A0A';
+  ctx.font = 'bold 20px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(tituloSeccion, W - PAD - badgeW / 2, 62);
+
+  // ── PODIO ──
+  let y = HEADER_H + 36;
+  const podiumColors = ['#D4AF37', '#A8A9AD', '#CD7F32']; // oro, plata, bronce
+  const podiumSizes = [52, 38, 32];
+  const podiumLabels = ['CAMPEÓN', '2º LUGAR', '3ER LUGAR'];
+
+  standings.slice(0, Math.min(3, n)).forEach((s, i) => {
+    const x = PAD;
+    // Fondo de tarjeta
+    ctx.fillStyle = '#FFFFFF';
+    ctx.shadowColor = 'rgba(0,0,0,0.08)';
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.roundRect(x, y, W - PAD * 2, 76, 10);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Barra lateral de color
+    ctx.fillStyle = podiumColors[i];
+    ctx.beginPath();
+    ctx.roundRect(x, y, 8, 76, [10, 0, 0, 10]);
+    ctx.fill();
+
+    // Posición
+    ctx.fillStyle = podiumColors[i];
+    ctx.font = `bold ${podiumSizes[i]}px system-ui, sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.fillText(i === 0 ? '🏆' : i === 1 ? '🥈' : '🥉', x + 24, y + 50);
+
+    // Nombre
+    ctx.fillStyle = '#0A0A0A';
+    ctx.font = `bold ${i === 0 ? 32 : 26}px system-ui, sans-serif`;
+    ctx.fillText(s.nombre, x + 90, y + 46);
+
+    // Label de posición
+    ctx.fillStyle = '#999';
+    ctx.font = '13px system-ui, sans-serif';
+    ctx.fillText(podiumLabels[i], x + 90, y + 66);
+
+    // Stats derecha
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#333';
+    ctx.font = `bold ${i === 0 ? 22 : 18}px system-ui, sans-serif`;
+    ctx.fillText(`${s.pg}V  ${s.pp}D  ${s.gf}PF`, W - PAD - 20, y + 46);
+
+    y += 90;
+  });
+
+  // ── TABLA COMPLETA ──
+  y += 10;
+  const tableX = PAD;
+  const tableW = W - PAD * 2;
+
+  // Título tabla
+  ctx.fillStyle = '#0A0A0A';
+  ctx.font = 'bold 18px system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('CLASIFICACIÓN COMPLETA', tableX, y);
+  y += 20;
+
+  // Cabecera tabla
+  ctx.fillStyle = '#0A0A0A';
+  ctx.beginPath();
+  ctx.roundRect(tableX, y, tableW, TABLE_HEADER_H, [8, 8, 0, 0]);
+  ctx.fill();
+
+  const cols  = ['#',  'Jugador',   'PJ',  'PG',  'PP',  'PF',  'Pts',  'elo*'];
+  const colWs = [40,   340,         60,    60,    60,    60,    70,    70];
+  let cx = tableX + 16;
+  cols.forEach((c, i) => {
+    const isElo = i === cols.length - 1;
+    ctx.fillStyle = isElo ? '#888' : '#FFFFFF';
+    ctx.font = isElo ? '12px system-ui, sans-serif' : 'bold 15px system-ui, sans-serif';
+    ctx.textAlign = i <= 1 ? 'left' : 'center';
+    ctx.fillText(c, i <= 1 ? cx : cx + colWs[i]/2, y + 28);
+    cx += colWs[i];
+  });
+  y += TABLE_HEADER_H;
+
+  standings.forEach((s, ri) => {
+    const rowBg = ri === 0 ? '#FFFBEB' : ri % 2 === 0 ? '#FAFAFA' : '#FFFFFF';
+    ctx.fillStyle = rowBg;
+    const isLast = ri === standings.length - 1;
+    ctx.beginPath();
+    ctx.roundRect(tableX, y, tableW, ROW_H, isLast ? [0, 0, 8, 8] : 0);
+    ctx.fill();
+
+    // Borde izquierdo dorado para el 1º
+    if (ri === 0) {
+      ctx.fillStyle = '#D4AF37';
+      ctx.fillRect(tableX, y, 4, ROW_H);
+    }
+
+    cx = tableX + 16;
+    const vals = [
+      ri + 1,
+      s.nombre,
+      s.pj,
+      s.pg,
+      s.pp,
+      s.gf,
+      s.pts,
+      getElo(s.nombre)
+    ];
+    vals.forEach((v, ci) => {
+      const isEloCol = ci === vals.length - 1;
+      ctx.textAlign = ci <= 1 ? 'left' : 'center';
+      ctx.fillStyle = isEloCol ? '#BBBBBB' : ci === 6 ? '#22C55E' : ri === 0 ? '#0A0A0A' : '#333';
+      ctx.font = isEloCol ? '12px system-ui, sans-serif' : (ci === 6 || ri === 0) ? 'bold 15px system-ui, sans-serif' : '15px system-ui, sans-serif';
+      ctx.fillText(String(v), ci <= 1 ? cx : cx + colWs[ci]/2, y + ROW_H/2 + 6);
+      cx += colWs[ci];
+    });
+
+    // Separador
+    ctx.strokeStyle = '#EBEBEB';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(tableX, y + ROW_H);
+    ctx.lineTo(tableX + tableW, y + ROW_H);
+    ctx.stroke();
+
+    y += ROW_H;
+  });
+
+  // ── FOOTER ──
+  y += 20;
+  ctx.fillStyle = '#BBBBBB';
+  ctx.font = '12px system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('* elo: rating histórico acumulado entre sesiones. Ganas más puntos al vencer rivales mejor rankeados.', PAD, y + 16);
+  ctx.fillStyle = '#CCCCCC';
+  ctx.textAlign = 'center';
+  ctx.fillText('Generado con Ping Pong XTMO App  ·  Liga All Stars', W / 2, y + 36);
+
+  return canvas;
+}
+
+// ===================== SAVE/LOAD =====================
+function guardarLiga() {
+  const snapshot = {
+    torneoState,
+    ligaSnapshot: {},
+    fecha: new Date().toISOString()
+  };
+  torneoState.jugadores.forEach(j => {
+    if (ligaData.jugadores[j.nombre]) {
+      snapshot.ligaSnapshot[j.nombre] = ligaData.jugadores[j.nombre];
+    }
+  });
+
+  const json = JSON.stringify(snapshot, null, 2);
+  const date = (() => { const n = new Date(); return n.toISOString().split('T')[0].replace(/-/g,'_') + '_' + String(n.getHours()).padStart(2,'0') + String(n.getMinutes()).padStart(2,'0'); })();
+  const blob = new Blob([json], { type: 'application/json' });
+  const link = document.createElement('a');
+  link.download = `PPTORNEO_${date}.json`;
+  link.href = URL.createObjectURL(blob);
+  link.click();
+}
+
+function openLoadModal() {
+  document.getElementById('loadJson').value = '';
+  document.getElementById('modalLoad').classList.add('open');
+}
+
+function loadFromFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('loadJson').value = e.target.result;
+    // Show confirmation that file was read
+    const status = document.getElementById('loadFileStatus');
+    if (status) { status.textContent = '✓ ' + file.name + ' listo'; status.style.color = '#22C55E'; }
+  };
+  reader.onerror = () => {
+    const status = document.getElementById('loadFileStatus');
+    if (status) { status.textContent = '✗ Error leyendo archivo'; status.style.color = '#EF4444'; }
+  };
+  reader.readAsText(file);
+}
+
+function cargarJSON() {
+  try {
+    // Try file input first if textarea is empty
+    let json = document.getElementById('loadJson').value.trim();
+    if (!json) {
+      const fileInput = document.querySelector('#modalLoad input[type=file]');
+      if (fileInput && fileInput.files[0]) {
+        // Read synchronously via FileReader with callback
+        const reader = new FileReader();
+        reader.onload = e => {
+          procesarImportJSON(e.target.result);
+        };
+        reader.onerror = () => alert('Error leyendo el archivo.');
+        reader.readAsText(fileInput.files[0]);
+        return;
+      }
+      alert('Selecciona un archivo o pega el JSON primero.');
+      return;
+    }
+    procesarImportJSON(json);
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+function procesarImportJSON(json) {
+  try {
+    const data = JSON.parse(json);
+    if (data.torneoState) {
+      torneoState = data.torneoState;
+      saveState();
+    }
+    if (data.ligaSnapshot) {
+      Object.assign(ligaData.jugadores, data.ligaSnapshot);
+      saveLiga();
+    }
+    closeModal('modalLoad');
+    // Migrate old states: ensure all players have presente field
+    torneoState.jugadores.forEach(j => { if (j.presente === undefined) j.presente = true; });
+    saveState();
+    // Restore tab state
+    if (torneoState.fase === 'parejas' || torneoState.fase === 'done' || torneoState.fase === 'individuales_done') {
+      document.getElementById('tab3').disabled = false;
+    }
+    // Sync formato radio button
+    const r = document.querySelector(`input[name=formato][value="${torneoState.formato}"]`);
+    if (r) r.checked = true;
+    document.getElementById('mesasCount').textContent = torneoState.mesas;
+    updateFooterBtns();
+    renderAll();
+    alert('✓ Liga cargada correctamente.');
+  } catch(e) {
+    alert('Error al parsear el JSON: ' + e.message);
+  }
+}
+
+// ===================== ELO MODAL =====================
+function resetearEloConClave() {
+  // Mini password prompt inside modal
+  const existing = document.getElementById('eloResetPanel');
+  if (existing) { existing.remove(); return; }
+
+  const panel = document.createElement('div');
+  panel.id = 'eloResetPanel';
+  panel.style.cssText = 'margin-top:12px;padding:12px;background:#fff5f5;border:1px solid #fca5a5;border-radius:8px';
+  panel.innerHTML = `
+    <div style="font-size:13px;font-weight:600;color:#EF4444;margin-bottom:8px">⚠️ Esta acción borrará todo el historial ELO permanentemente.</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="password" id="eloClaveInput" placeholder="Contraseña" maxlength="20"
+        style="padding:7px 12px;border:2px solid #ccc;border-radius:6px;font-size:14px;width:160px"
+        onkeydown="if(event.key==='Enter')confirmarResetElo()">
+      <button onclick="confirmarResetElo()" style="padding:7px 14px;border:none;border-radius:6px;background:#EF4444;color:#fff;cursor:pointer;font-weight:bold;font-size:13px">Confirmar</button>
+      <button onclick="document.getElementById('eloResetPanel').remove()" style="padding:7px 10px;border:1px solid #ccc;border-radius:6px;background:#fff;cursor:pointer;font-size:13px">Cancelar</button>
+    </div>
+    <div id="eloClaveError" style="font-size:12px;color:#EF4444;margin-top:6px;display:none">Contraseña incorrecta.</div>
+  `;
+
+  const content = document.getElementById('eloModalContent');
+  content.parentNode.insertBefore(panel, content);
+  document.getElementById('eloClaveInput').focus();
+}
+
+function confirmarResetElo() {
+  const clave = document.getElementById('eloClaveInput')?.value;
+  const err = document.getElementById('eloClaveError');
+  if (clave !== 'qaz') {
+    if (err) { err.style.display = 'block'; }
+    document.getElementById('eloClaveInput').value = '';
+    document.getElementById('eloClaveInput').focus();
+    return;
+  }
+  // Reset ELO
+  ligaData.jugadores = {};
+  saveLiga();
+  document.getElementById('eloResetPanel')?.remove();
+  openEloModal();
+  alert('✓ Ranking ELO reiniciado. Todos los jugadores vuelven a 1000.');
+}
+
+function openEloModal() {
+  const players = Object.entries(ligaData.jugadores)
+    .map(([nombre, data]) => ({ nombre, ...data }))
+    .sort((a, b) => b.elo - a.elo);
+
+  if (players.length === 0) {
+    document.getElementById('eloModalContent').innerHTML = '<p style="color:#666">No hay datos ELO registrados aún.</p>';
+  } else {
+    document.getElementById('eloModalContent').innerHTML = `
+      <table class="elo-table">
+        <thead><tr><th>#</th><th>Jugador</th><th>ELO</th><th>PJ</th><th>PG</th><th>Racha</th></tr></thead>
+        <tbody>
+          ${players.map((p, i) => `
+            <tr>
+              <td>${i+1}</td>
+              <td>${avatarEl(p.nombre, getPlayerData(p.nombre).foto)} ${p.nombre}</td>
+              <td><strong>${p.elo}</strong></td>
+              <td>${p.pj}</td>
+              <td>${p.pg}</td>
+              <td style="color:${p.racha > 0 ? '#22C55E' : '#EF4444'}">${p.racha > 0 ? '+' : ''}${p.racha}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+  document.getElementById('modalElo').classList.add('open');
+}
+
+// ===================== MODALS =====================
+function openConfirmModal(title, msg, onYes) {
+  document.getElementById('confirmTitle').textContent = title;
+  document.getElementById('confirmMsg').textContent = msg;
+  document.getElementById('confirmYes').onclick = () => { onYes(); closeModal('modalConfirm'); };
+  document.getElementById('modalConfirm').classList.add('open');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+// Close modals on backdrop click
+document.querySelectorAll('.modal').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
+});
+
+// ===================== LIGA ACTIONS =====================
+function nuevaLiga() {
+  window.location.reload();
+}
+
+function confirmarNuevaLiga() {
+  openConfirmModal('¿Nueva Liga?', 'Se perderá el progreso actual (el ELO histórico se conserva).', () => {
+    // Save final session data
+    if (torneoState.fase !== 'config') {
+      const standings = getStandings(torneoState.partidos, torneoState.jugadores.map(j => j.nombre));
+      const pStandings = torneoState.parejas.length > 0 ? getStandings(torneoState.partidosParejas, torneoState.parejas.map(p => p.nombre)) : [];
+      ligaData.sesiones.push({
+        fecha: (() => { const d = new Date(); return d.getFullYear() + '_' + String(d.getMonth()+1).padStart(2,'0') + '_' + String(d.getDate()).padStart(2,'0'); })(),
+        jugadores: torneoState.jugadores.filter(j => j.presente !== false).length,
+        campeonIndiv: standings[0] ? standings[0].nombre : null,
+        campeonParejas: pStandings[0] ? pStandings[0].nombre : null,
+        formato: torneoState.formato
+      });
+      saveLiga();
+      syncToCloud();
+    }
+
+    torneoState = {
+      fase: 'config', jugadores: [], mesas: 3, formato: 3,
+      partidos: [], partidosParejas: [], parejas: [], activeTab: 0, startDate: null
+    };
+    timers = {};
+    filtroJugador = null;
+    // Load from history sorted by most recently used
+    torneoState.jugadores = cargarJugadoresHistorico();
+    saveState();
+
+    document.getElementById('tab3').disabled = true;
+    const r = document.querySelector('input[name=formato][value="1"]');
+    if (r) r.checked = true;
+    document.getElementById('mesasCount').textContent = 3;
+    updateFooterBtns();
+    switchTab(0);
+    renderAll();
+  });
+}
+
+function continuarLiga() {
+  if (torneoState.fase === 'config') {
+    alert('No hay torneo en progreso. Configura uno nuevo.');
+    return;
+  }
+  switchTab(torneoState.fase === 'parejas' || torneoState.fase === 'done' ? 3 : 2);
+}
+
+// ===================== FOOTER BUTTONS =====================
+function updateFooterBtns() {
+  const indivDone = torneoState.fase === 'individuales_done' || torneoState.fase === 'done';
+  const parejasDone = torneoState.fase === 'done';
+  document.getElementById('btnDescIndiv').disabled = !indivDone;
+  document.getElementById('btnPdfIndiv').disabled = !indivDone;
+  document.getElementById('btnDescParejas').disabled = !parejasDone;
+  document.getElementById('btnPdfParejas').disabled = !parejasDone;
+}
+
+// ===================== INIT =====================
+function renderAll() {
+  renderWelcome();
+  renderJugadores();
+  if (currentTab === 2) renderIndividuales();
+  if (currentTab === 3) renderParejas();
+  if (currentTab === 4) renderTabla();
+}
+
+function cargarJugadoresHistorico() {
+  // Sort all known players by lastUsed desc, then by ELO desc as tiebreaker
+  const conocidos = Object.entries(ligaData.jugadores || {})
+    .sort((a, b) => (b[1].lastUsed || 0) - (a[1].lastUsed || 0))
+    .map(([nombre]) => ({ nombre, foto: null, seFue: false, presente: false }));
+
+  if (conocidos.length > 0) return conocidos;
+
+  // No history — use hardcoded defaults (also unchecked)
+  return ['EDDY','DON RICARDO','JOSE ANGEL','GERARDO HZD','FER SADA',
+    'CHUY','CHALO','JEAN POUL','ALEXX','DANIEL','JUGADOR 11','JUGADOR 12'
+  ].map(n => ({ nombre: n, foto: null, seFue: false, presente: false }));
+}
+
+function init() {
+  loadState();
+  loadLiga();
+
+  // Sync mesas display
+  document.getElementById('mesasCount').textContent = torneoState.mesas;
+
+  // Sync formato radio
+  const fmtRadio = document.querySelector(`input[name=formato][value="${torneoState.formato}"]`);
+  if (fmtRadio) fmtRadio.checked = true;
+
+  // Setup tab state
+  if (torneoState.fase === 'parejas' || torneoState.fase === 'done' || torneoState.fase === 'individuales_done') {
+    document.getElementById('tab3').disabled = false;
+  }
+
+  // Restore timers for playing matches
+  [...(torneoState.partidos || []), ...(torneoState.partidosParejas || [])].forEach(m => {
+    if (m.estado === 'jugando' && m.startTime) {
+      timers[m.id] = { startTime: m.startTime, elapsed: Math.floor((Date.now() - m.startTime) / 1000) };
+      timers[m.id].interval = setInterval(() => {
+        timers[m.id].elapsed = Math.floor((Date.now() - timers[m.id].startTime) / 1000);
+        updateTimerDisplay(m.id);
+      }, 1000);
+    }
+  });
+
+  // Migrate old states: ensure all players have presente field
+  torneoState.jugadores.forEach(j => { if (j.presente === undefined) j.presente = true; });
+
+  // Default players if none — load from history or use hardcoded defaults
+  if (torneoState.jugadores.length === 0) {
+    torneoState.jugadores = cargarJugadoresHistorico();
+    saveState();
+  }
+
+  updateFooterBtns();
+  renderAll();
+  renderEstimador();
+
+  // Restore active tab
+  if (torneoState.activeTab > 0) {
+    switchTab(torneoState.activeTab);
+  } else {
+    renderWelcome();
+    renderJugadores();
+  }
+}
+
+// ===================== GOOGLE LOGIN + CLOUD SYNC =====================
+const WORKER_URL = 'https://pingpong-worker.contacto-ingenieriadigital.workers.dev';
+let _currentUser = null;
+let _currentCredential = null;
+
+function showLoginScreen() {
+  document.getElementById('loginScreen').style.display = 'flex';
+}
+
+function hideLoginScreen() {
+  document.getElementById('loginScreen').style.display = 'none';
+}
+
+function showSyncOverlay(msg) {
+  const el = document.getElementById('loginSync');
+  document.getElementById('loginSyncMsg').textContent = msg || 'Sincronizando...';
+  el.style.display = 'flex';
+}
+
+function hideSyncOverlay() {
+  document.getElementById('loginSync').style.display = 'none';
+}
+
+async function handleGoogleLogin(response) {
+  _currentCredential = response.credential;
+
+  // Decode name/picture from JWT payload (no secret needed)
+  try {
+    const payload = JSON.parse(atob(_currentCredential.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+    _currentUser = { sub: payload.sub, email: payload.email, name: payload.name, picture: payload.picture };
+  } catch { _currentUser = null; }
+
+  hideLoginScreen();
+  showSyncOverlay('Sincronizando tu historial...');
+
+  try {
+    if (WORKER_URL) {
+      const res = await fetch(WORKER_URL + '/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: _currentCredential })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.user) _currentUser = data.user;
+        if (data.ligaData) {
+          mergeLigaData(data.ligaData);
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Sync failed, usando datos locales', e);
+  }
+
+  hideSyncOverlay();
+  renderUserPill();
+  init();
+}
+
+function mergeLigaData(cloudData) {
+  // Merge cloud jugadores con local — cloud wins on ELO, keep higher pj
+  if (cloudData.jugadores) {
+    Object.entries(cloudData.jugadores).forEach(([nombre, cloudJ]) => {
+      const local = ligaData.jugadores[nombre];
+      if (!local) {
+        ligaData.jugadores[nombre] = cloudJ;
+      } else {
+        // Keep higher ELO (more sessions played)
+        if ((cloudJ.pj || 0) > (local.pj || 0)) {
+          ligaData.jugadores[nombre] = cloudJ;
+        }
+      }
+    });
+  }
+  // Merge sesiones — add cloud sessions not in local (by fecha)
+  if (cloudData.sesiones && Array.isArray(cloudData.sesiones)) {
+    const localFechas = new Set((ligaData.sesiones || []).map(s => s.fecha + '|' + (s.campeonIndiv || '')));
+    const nuevas = cloudData.sesiones.filter(s => !localFechas.has(s.fecha + '|' + (s.campeonIndiv || '')));
+    ligaData.sesiones = [...(ligaData.sesiones || []), ...nuevas];
+    ligaData.sesiones.sort((a, b) => a.fecha < b.fecha ? -1 : 1);
+  }
+  saveLiga();
+}
+
+async function syncToCloud() {
+  if (!_currentCredential || !WORKER_URL) return;
+  try {
+    await fetch(WORKER_URL + '/api/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _currentCredential },
+      body: JSON.stringify({ ligaData })
+    });
+  } catch (e) {
+    console.warn('Sync to cloud failed', e);
+  }
+}
+
+function continueWithoutLogin() {
+  _currentUser = null;
+  _currentCredential = null;
+  hideLoginScreen();
+  renderUserPill();
+  init();
+}
+
+function renderUserPill() {
+  const pill = document.getElementById('userPill');
+  if (!pill) return;
+  if (_currentUser) {
+    pill.style.display = 'flex';
+    pill.innerHTML = `<span class="user-pill" onclick="logoutUser()" title="Cerrar sesión">
+      ${_currentUser.picture ? `<img src="${_currentUser.picture}" alt="">` : `<span style="width:24px;height:24px;border-radius:50%;background:#000;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold">${_currentUser.name.charAt(0)}</span>`}
+      ${_currentUser.name.split(' ')[0]}
+    </span>`;
+  } else {
+    pill.style.display = 'flex';
+    pill.innerHTML = `<button class="btn btn-sm" onclick="showLoginScreen()" style="font-size:11px">☁ Iniciar sesión</button>`;
+  }
+}
+
+function logoutUser() {
+  if (!confirm('¿Cerrar sesión? Tus datos locales se conservan.')) return;
+  _currentUser = null;
+  _currentCredential = null;
+  renderUserPill();
+}
+
+// RLR
+const _rlr = 'Ricardo López Reyero';
+Object.defineProperty(window,'_owner',{get:()=>_rlr,enumerable:false});
+
+// Show login screen on load (init is called after login)
+showLoginScreen();
+</script>
+</body>
+</html>
