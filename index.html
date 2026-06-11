@@ -41,6 +41,7 @@ nav button:disabled{color:#aaa;cursor:not-allowed}
 /* CARDS */
 .card{border:1px solid #ccc;border-radius:8px;padding:16px;margin-bottom:12px}
 .card-playing{border:2px solid #000;background:#000;color:#fff;border-radius:8px;padding:16px;margin-bottom:12px}
+.card-paused{border:3px solid #F59E0B;background:#1a1200;color:#fff;border-radius:8px;padding:16px;margin-bottom:12px}
 .card-done{border:1px solid #ccc;border-radius:8px;padding:12px;margin-bottom:8px;opacity:.85}
 .card-wo{border:1px solid #ccc;border-radius:8px;padding:12px;margin-bottom:8px;background:#F3F4F6;color:#9CA3AF}
 /* LAYOUT */
@@ -605,7 +606,7 @@ function getPlayerData(nombre) {
 
 // ===================== MESA ASSIGNMENT =====================
 function getMesaLibre(partidos) {
-  const used = new Set(partidos.filter(p => p.estado === 'jugando').map(p => p.mesa));
+  const used = new Set(partidos.filter(p => p.estado === 'jugando' || p.estado === 'pausado').map(p => p.mesa));
   for (let i = 1; i <= torneoState.mesas; i++) {
     if (!used.has(i)) return i;
   }
@@ -697,6 +698,32 @@ function subPt(matchId, player, tipo) {
 }
 
 // ===================== MATCH ACTIONS =====================
+function pausarPartido(matchId, tipo) {
+  const partidos = tipo === 'individuales' ? torneoState.partidos : torneoState.partidosParejas;
+  const match = partidos.find(p => p.id === matchId);
+  if (!match || match.estado !== 'jugando') return;
+  const elapsed = stopMatchTimer(matchId);
+  match.estado = 'pausado';
+  match.pausedElapsed = elapsed;
+  saveState();
+  renderTab(currentTab);
+}
+
+function reanudarPartido(matchId, tipo) {
+  const partidos = tipo === 'individuales' ? torneoState.partidos : torneoState.partidosParejas;
+  const match = partidos.find(p => p.id === matchId);
+  if (!match || match.estado !== 'pausado') return;
+  match.estado = 'jugando';
+  const elapsed = match.pausedElapsed || 0;
+  timers[matchId] = { startTime: Date.now() - elapsed * 1000, elapsed };
+  timers[matchId].interval = setInterval(() => {
+    timers[matchId].elapsed = Math.floor((Date.now() - timers[matchId].startTime) / 1000);
+    updateTimerDisplay(matchId);
+  }, 1000);
+  saveState();
+  renderTab(currentTab);
+}
+
 function iniciarPartido(matchId, tipo) {
   const partidos = tipo === 'individuales' ? torneoState.partidos : torneoState.partidosParejas;
   const match = partidos.find(p => p.id === matchId);
@@ -1723,7 +1750,7 @@ function renderMatchCards(containerId, partidos, tipo) {
 
   const filtrar = p => !filtroJugador || matchInvolves(p, filtroJugador);
 
-  const playing = partidos.filter(p => p.estado === 'jugando' && filtrar(p));
+  const playing = partidos.filter(p => (p.estado === 'jugando' || p.estado === 'pausado') && filtrar(p));
   const pending = partidos.filter(p => p.estado === 'por_jugar' && filtrar(p));
   const done = partidos.filter(p => (p.estado === 'jugado' || p.estado === 'walkover') && filtrar(p));
 
@@ -1756,9 +1783,9 @@ function renderMatchCards(containerId, partidos, tipo) {
 
   el.innerHTML = html;
 
-  // Restart timers for playing matches
+  // Restart timers for playing matches (not paused)
   playing.forEach(m => {
-    if (!timers[m.id]) {
+    if (m.estado === 'jugando' && !timers[m.id]) {
       startMatchTimer(m.id);
     }
   });
@@ -1778,7 +1805,8 @@ function renderPlayingCard(m, tipo, num) {
   const w1 = countWins(m.juegos, 1);
   const w2 = countWins(m.juegos, 2);
   const need = gamesNeeded();
-  const timerSec = getElapsed(m.id);
+  const isPaused = m.estado === 'pausado';
+  const timerSec = isPaused ? (m.pausedElapsed || 0) : getElapsed(m.id);
   const timerClass = timerSec > 900 ? 'timer timer-warn' : 'timer';
   const gameNum = m.juegos.length + 1;
 
@@ -1795,14 +1823,23 @@ function renderPlayingCard(m, tipo, num) {
     : '';
 
   return `
-    <div class="card-playing" id="match_${m.id}" style="padding:12px">
+    <div class="${isPaused ? 'card-paused' : 'card-playing'}" id="match_${m.id}" style="padding:12px">
 
       <!-- Cabecera -->
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <span style="font-size:11px;color:#555;font-weight:bold;letter-spacing:1px">
-          <span style="background:#fff;color:#000;border-radius:4px;padding:1px 6px;margin-right:5px;font-size:12px">#${num||''}</span>MESA ${m.mesa}${torneoState.formato>1?' · Mejor de '+torneoState.formato:''}
-        </span>
-        <span id="timer_${m.id}" class="${timerClass}">${formatTime(timerSec)}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:11px;color:#555;font-weight:bold;letter-spacing:1px">
+            <span style="background:#fff;color:#000;border-radius:4px;padding:1px 6px;margin-right:5px;font-size:12px">#${num||''}</span>MESA ${m.mesa}${torneoState.formato>1?' · Mejor de '+torneoState.formato:''}
+          </span>
+          ${isPaused ? '<span style="font-size:10px;background:#F59E0B;color:#000;border-radius:4px;padding:1px 7px;font-weight:800;letter-spacing:.5px">⏸ PAUSADO</span>' : ''}
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span id="timer_${m.id}" class="${timerClass}" style="${isPaused ? 'color:#F59E0B' : ''}">${formatTime(timerSec)}</span>
+          ${isPaused
+            ? `<button onclick="reanudarPartido('${m.id}','${tipo}')" style="padding:3px 10px;border:1px solid #F59E0B;border-radius:5px;background:transparent;color:#F59E0B;cursor:pointer;font-size:12px;font-weight:700">▶ Reanudar</button>`
+            : `<button onclick="pausarPartido('${m.id}','${tipo}')" style="padding:3px 10px;border:1px solid #444;border-radius:5px;background:transparent;color:#888;cursor:pointer;font-size:12px">⏸</button>`
+          }
+        </div>
       </div>
 
       ${historyHtml}
@@ -1822,7 +1859,7 @@ function renderPlayingCard(m, tipo, num) {
       </div>
 
       <!-- BOTONES + MARCADOR -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;${isPaused ? 'opacity:.45;pointer-events:none' : ''}">
         <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
           <button onclick="addPt('${m.id}',1,'${tipo}')"
             style="width:100%;height:44px;font-size:28px;font-weight:900;background:#fff;color:#000;border:none;border-radius:8px;cursor:pointer;line-height:1">+</button>
@@ -1850,7 +1887,7 @@ function renderPlayingCard(m, tipo, num) {
       </div>
 
       <!-- Confirmar / resetear -->
-      <div id="confirmArea_${m.id}" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;align-items:center">
+      <div id="confirmArea_${m.id}" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;align-items:center;${isPaused ? 'opacity:.45;pointer-events:none' : ''}">
         <button onclick="resetJuego('${m.id}','${tipo}')"
           style="padding:6px 11px;border:1px solid #444;border-radius:6px;background:transparent;color:#9CA3AF;cursor:pointer;font-size:12px">↺ Resetear</button>
         ${valid
