@@ -76,7 +76,7 @@ tr:hover td{background:#f9f9f9}
 .cell-win{background:#14532d;color:#86efac;font-weight:bold;text-align:center}
 .cell-lose{background:#7f1d1d;color:#fca5a5;text-align:center}
 .cell-wo{background:#F3F4F6;color:#9CA3AF;text-align:center;font-size:11px}
-.cell-playing{background:#000;color:#fff;text-align:center;font-size:11px}
+.cell-playing{background:#1d4ed8;color:#fff;text-align:center;font-size:11px}
 /* CHIPS */
 .player-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;border:1px solid #ccc;font-size:12px;margin:3px}
 .chip-playing{background:#000;color:#fff;border-color:#000}
@@ -2155,7 +2155,7 @@ function renderFullMatrix(containerId, partidos, jugadores, tipo) {
         <tbody>
           ${standings.map((s, ri) => {
             const cells = ordered.map((opp, ci) => {
-              if (opp === s.nombre) return '<td style="background:#f0f0f0">—</td>';
+              if (opp === s.nombre) return '<td style="background:#000;color:#000">—</td>';
               const p = resultMap[`${s.nombre}|${opp}`];
               if (!p) return '<td style="color:#ccc">·</td>';
               if (p.estado === 'jugando') {
