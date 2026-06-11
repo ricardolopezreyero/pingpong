@@ -183,7 +183,7 @@ tr.row-highlight td{background:rgba(0,0,0,0.07)!important}
 <!-- LOGIN SCREEN -->
 <div id="loginScreen">
   <div class="login-logo">🏓 PING PONG XTMO</div>
-  <div class="login-sub">Liga All Stars</div>
+  <div class="login-sub">Torneo de Ping Pong</div>
   <div class="login-box">
     <h2>Iniciar sesión</h2>
     <p>Tu historial y ELO se guardan en la nube<br>vinculados a tu cuenta de Google.</p>
@@ -225,7 +225,7 @@ tr.row-highlight td{background:rgba(0,0,0,0.07)!important}
 <!-- TAB 0: BIENVENIDA -->
 <div id="tabContent0" class="tab-content active">
   <div class="logo">🏓 PING PONG XTMO</div>
-  <div class="logo-sub">Liga All Stars</div>
+  <div class="logo-sub">Torneo de Ping Pong</div>
   <div style="display:flex;gap:12px;justify-content:center;margin-bottom:32px;flex-wrap:wrap">
     <button class="btn btn-primary" onclick="nuevaLiga()">+ Nueva Liga</button>
     <button class="btn" onclick="continuarLiga()">▶ Continuar Liga</button>
@@ -841,6 +841,7 @@ function confirmarJuego(matchId, tipo) {
 }
 
 function resetJuego(matchId, tipo) {
+  if (!confirm('¿Resetear el marcador de este juego a 0 – 0?')) return;
   const partidos = tipo === 'individuales' ? torneoState.partidos : torneoState.partidosParejas;
   const match = partidos.find(p => p.id === matchId);
   if (!match) return;
@@ -2437,7 +2438,7 @@ function generarCanvasExport(tipo) {
 
   ctx.font = '22px system-ui, sans-serif';
   ctx.fillStyle = '#AAAAAA';
-  ctx.fillText('Liga All Stars  ·  ' + fecha, PAD, 108);
+  ctx.fillText(fecha, PAD, 108);
 
   // Sección badge (derecha)
   const badgeW = 260;
@@ -2582,7 +2583,7 @@ function generarCanvasExport(tipo) {
   ctx.fillText('* elo: rating histórico acumulado entre sesiones. Ganas más puntos al vencer rivales mejor rankeados.', PAD, y + 16);
   ctx.fillStyle = '#CCCCCC';
   ctx.textAlign = 'center';
-  ctx.fillText('Generado con Ping Pong XTMO App  ·  Liga All Stars', W / 2, y + 36);
+  ctx.fillText('Generado con Ping Pong XTMO App', W / 2, y + 36);
 
   return canvas;
 }
