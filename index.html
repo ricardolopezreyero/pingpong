@@ -152,9 +152,10 @@ label{display:block;font-weight:600;margin-bottom:4px;font-size:13px}
 /* CONFIRM BUTTON STRONG */
 .btn-confirm{padding:10px 24px;border:none;border-radius:8px;background:#16A34A;color:#fff;cursor:pointer;font-size:15px;font-weight:bold;transition:.15s}
 .btn-confirm:hover{background:#15803d}
-/* TABLA HOVER COLUMN/ROW */
-.col-highlight{background:rgba(0,0,0,0.11)!important}
-tr.row-highlight td{background:rgba(0,0,0,0.07)!important}
+/* TABLA HOVER CROSSHAIR */
+.col-highlight{background:rgba(0,0,0,0.09)!important}
+tr.row-highlight td{background:rgba(0,0,0,0.06)!important}
+.col-highlight.row-highlight-cell{background:rgba(0,0,0,0.22)!important}
 /* SCORE INPUT KEYBOARD */
 .score-num-input{-moz-appearance:textfield;outline:none;background:transparent;border:none;border-bottom:2px solid #444;color:#fff;font-weight:900;font-family:monospace;text-align:center;width:100%;display:block}
 .score-num-input::-webkit-outer-spin-button,.score-num-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
@@ -2263,18 +2264,22 @@ function renderFullMatrix(containerId, partidos, jugadores, tipo) {
 
   el.innerHTML = matrixHTML;
 
-  // Hover fila + columna con contraste
-  el.querySelectorAll('tbody tr').forEach(row => {
-    row.addEventListener('mouseenter', function() {
-      this.classList.add('row-highlight');
-      const idx = Array.from(this.parentNode.children).indexOf(this);
-      el.querySelectorAll(`thead tr th:nth-child(${idx + 3}), tbody tr td:nth-child(${idx + 3})`).forEach(c => c.classList.add('col-highlight'));
-    });
-    row.addEventListener('mouseleave', function() {
-      this.classList.remove('row-highlight');
-      el.querySelectorAll('.col-highlight').forEach(c => c.classList.remove('col-highlight'));
-    });
+  // Crosshair: highlight row + column of hovered cell
+  function clearCrosshair() {
+    el.querySelectorAll('.row-highlight').forEach(r => r.classList.remove('row-highlight'));
+    el.querySelectorAll('.col-highlight').forEach(c => c.classList.remove('col-highlight'));
+    el.querySelectorAll('.row-highlight-cell').forEach(c => c.classList.remove('row-highlight-cell'));
+  }
+  el.addEventListener('mouseover', function(e) {
+    const td = e.target.closest('tbody td');
+    if (!td) return;
+    clearCrosshair();
+    td.parentElement.classList.add('row-highlight');
+    const colIdx = Array.from(td.parentElement.children).indexOf(td) + 1;
+    el.querySelectorAll(`thead tr th:nth-child(${colIdx}), tbody tr td:nth-child(${colIdx})`).forEach(c => c.classList.add('col-highlight'));
+    td.classList.add('row-highlight-cell');
   });
+  el.addEventListener('mouseleave', clearCrosshair);
 }
 
 function renderTimeStats(containerId, partidos, jugadoresList) {
