@@ -257,13 +257,6 @@ tr.row-highlight td{background:rgba(0,0,0,0.07)!important}
     </div>
   </div>
 
-  <div class="card">
-    <h3 style="margin-bottom:12px">Formato de Partido</h3>
-    <label class="format-option"><input type="radio" name="formato" value="1" checked onchange="setFormato(1)"> 1 juego a 11 <span style="color:#666;font-size:12px;margin-left:6px">(recomendado)</span></label>
-    <label class="format-option"><input type="radio" name="formato" value="3" onchange="confirmarFormato(3, this)"> Mejor de 3 juegos a 11 <span style="color:#666;font-size:12px;margin-left:6px">(competencia)</span></label>
-    <label class="format-option"><input type="radio" name="formato" value="5" onchange="confirmarFormato(5, this)"> Mejor de 5 juegos a 11 <span style="color:#666;font-size:12px;margin-left:6px">(profesional)</span></label>
-  </div>
-
   <div class="card" id="estimadorCard">
     <h3 style="margin-bottom:12px">⏱ Estimado de duración</h3>
     <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
@@ -1420,7 +1413,7 @@ function setFormato(f) {
   renderEstimador();
 }
 
-function confirmarFormato(f, radio) {
+function confirmarFormato(f) {
   const msgs = {
     3: 'Vas a cambiar a MEJOR DE 3 JUEGOS a 11.\n\nCada partido puede tomar hasta 3 juegos. El primero en ganar 2 gana el partido.\n\n¿Confirmar este formato?',
     5: 'Vas a cambiar a MEJOR DE 5 JUEGOS a 11.\n\nCada partido puede tomar hasta 5 juegos. El primero en ganar 3 gana el partido.\n\n¿Confirmar este formato?'
@@ -1428,9 +1421,6 @@ function confirmarFormato(f, radio) {
   if (confirm(msgs[f])) {
     setFormato(f);
   } else {
-    // Revert to 1
-    radio.checked = false;
-    document.querySelector('input[name=formato][value="1"]').checked = true;
     setFormato(1);
   }
 }
@@ -1474,7 +1464,7 @@ function renderEstimador() {
     const sel = torneoState.formato === f.val;
 
     return `
-      <div onclick="setFormato(${f.val});document.querySelector('input[name=formato][value=\\'${f.val}\\']').checked=true"
+      <div onclick="${f.val === 1 ? `setFormato(1)` : `confirmarFormato(${f.val})`}"
         style="border:${sel ? '2.5px solid #000' : '1.5px solid #e0e0e0'};border-radius:10px;
                padding:13px 16px;margin-bottom:8px;cursor:pointer;
                background:${sel ? '#111' : '#fff'};
@@ -1616,7 +1606,6 @@ function cargarDemo() {
   ].map(n => ({ nombre: n, foto: null, seFue: false, presente: true }));
   torneoState.mesas = 3;
   torneoState.formato = 3;
-  document.querySelector('input[name=formato][value="3"]').checked = true;
   renderPlayerList();
   document.getElementById('mesasCount').textContent = 3;
   saveState();
@@ -2645,9 +2634,6 @@ function procesarImportJSON(json) {
     if (torneoState.fase === 'parejas' || torneoState.fase === 'done' || torneoState.fase === 'individuales_done') {
       document.getElementById('tab3').disabled = false;
     }
-    // Sync formato radio button
-    const r = document.querySelector(`input[name=formato][value="${torneoState.formato}"]`);
-    if (r) r.checked = true;
     document.getElementById('mesasCount').textContent = torneoState.mesas;
     updateFooterBtns();
     renderAll();
@@ -2779,8 +2765,6 @@ function confirmarNuevaLiga() {
     saveState();
 
     document.getElementById('tab3').disabled = true;
-    const r = document.querySelector('input[name=formato][value="1"]');
-    if (r) r.checked = true;
     document.getElementById('mesasCount').textContent = 3;
     updateFooterBtns();
     switchTab(0);
@@ -2835,10 +2819,6 @@ function init() {
 
   // Sync mesas display
   document.getElementById('mesasCount').textContent = torneoState.mesas;
-
-  // Sync formato radio
-  const fmtRadio = document.querySelector(`input[name=formato][value="${torneoState.formato}"]`);
-  if (fmtRadio) fmtRadio.checked = true;
 
   // Setup tab state
   if (torneoState.fase === 'parejas' || torneoState.fase === 'done' || torneoState.fase === 'individuales_done') {
