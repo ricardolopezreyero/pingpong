@@ -1622,7 +1622,7 @@ function renderIndividuales() {
   }
 
   const partidos = torneoState.partidos;
-  const standings = getStandings(partidos, torneoState.jugadores.filter(j => !j.seFue));
+  const standings = getStandings(partidos, torneoState.jugadores.filter(j => j.presente === true && !j.seFue));
 
   // Check champion
   let banner = '';
