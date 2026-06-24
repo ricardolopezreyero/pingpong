@@ -36,6 +36,11 @@ nav button:disabled{color:#aaa;cursor:not-allowed}
 .indiv-header{position:sticky;top:70px;background:#fff;z-index:40;border-bottom:1px solid #eee;padding:8px 16px}
 .indiv-body{display:grid;grid-template-columns:65% 35%;gap:0;padding:0 16px;align-items:start}
 .indiv-tabla{position:sticky;top:70px;max-height:calc(100vh - 90px);overflow-y:auto;padding:12px 0 80px 12px}
+.grupos-body{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:10px 16px;align-items:start}
+.grupo-col{min-width:0;border:1px solid #eee;border-radius:10px;padding:10px}
+.grupo-tag{font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#fff;background:#000;display:inline-block;padding:3px 10px;border-radius:20px;margin-bottom:8px}
+.playoff-label{font-weight:800;font-size:13px;margin:12px 0 5px;letter-spacing:.3px}
+@media(max-width:760px){.grupos-body{grid-template-columns:1fr;gap:10px}}
 /* Parejas: mismo layout sticky */
 #tabContent3.active{display:block !important;height:auto !important;overflow:visible !important;padding:0;max-width:none;margin-top:70px;}
 /* CARDS */
@@ -271,10 +276,12 @@ tr.row-highlight td{background:rgba(0,0,0,0.06)!important}
     <div id="estimadorRows"></div>
   </div>
 
-  <div style="display:flex;gap:12px;flex-wrap:wrap">
+  <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
     <button class="btn btn-primary" onclick="generarFixture()" style="font-size:16px;padding:14px 28px">GENERAR FIXTURE</button>
+    <button class="btn" onclick="abrirDividirGrupos()" style="font-size:16px;padding:14px 22px" title="Para torneos con muchos jugadores: 2 grupos = la mitad de partidos por persona">👥 Dividir en 2 grupos</button>
     <button class="btn" onclick="cargarDemo()">🎮 Cargar Demo</button>
   </div>
+  <p style="font-size:12px;color:#999;margin-top:8px">Con muchos jugadores, <strong>Dividir en 2 grupos</strong> reduce los partidos de cada quien. Luego semifinal y final definen 1°–4°.</p>
 </div>
 
 <!-- TAB 2: INDIVIDUALES -->
@@ -385,6 +392,19 @@ tr.row-highlight td{background:rgba(0,0,0,0.06)!important}
   </div>
 </div>
 
+<div id="modalGrupos" class="modal">
+  <div class="modal-box" style="max-width:620px">
+    <h2 style="margin-bottom:4px">👥 Dividir en 2 grupos</h2>
+    <p style="font-size:13px;color:#666;margin-bottom:14px">Sugerencia equilibrada por ELO (los mejores quedan separados). Mueve jugadores con las flechas si quieres ajustar.</p>
+    <div id="gruposCols" style="display:flex;gap:14px;margin-bottom:12px"></div>
+    <div id="gruposResumen" style="font-size:13px;color:#444;background:#f5f5f5;border-radius:8px;padding:10px 12px;margin-bottom:14px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn" onclick="closeModal('modalGrupos')">Cancelar</button>
+      <button class="btn btn-primary" id="btnConfirmarGrupos" onclick="confirmarDividirGrupos()">✅ Generar 2 grupos</button>
+    </div>
+  </div>
+</div>
+
 <div id="modalFinIndiv" class="modal">
   <div class="modal-box" style="max-width:400px;text-align:center">
     <div style="font-size:48px;line-height:1;margin-bottom:12px">🏆</div>
@@ -415,6 +435,7 @@ const LIGAS_KEY = 'pptorneo_ligas_v2';
 
 let torneoState = {
   fase: 'config', // config | individuales | parejas | done
+  modo: 'simple', // simple | grupos (2 grupos + fase final)
   jugadores: [],
   mesas: 3,
   formato: 1,
@@ -953,6 +974,11 @@ function walkoverPartido(matchId, tipo) {
 }
 
 function checkPhaseComplete(partidos, tipo) {
+  // Modo 2 grupos: la progresión (semis → final → cierre) la maneja progresarGrupos
+  if (tipo === 'individuales' && torneoState.modo === 'grupos') {
+    progresarGrupos();
+    return;
+  }
   const active = partidos.filter(p => p.estado !== 'jugado' && p.estado !== 'walkover');
   if (active.length === 0) {
     if (tipo === 'individuales') {
@@ -1170,9 +1196,16 @@ function generarParejas(jugadoresActivos, comodinNombre = null) {
     jugadoresActivos = torneoState.jugadores.filter(j => j.presente === true && !j.seFue).map(j => j.nombre);
   }
 
-  const standings = getStandings(torneoState.partidos,
-    torneoState.jugadores.filter(j => jugadoresActivos.includes(j.nombre)));
-  let lista = standings.map(s => s.nombre);
+  let lista;
+  if (torneoState.modo === 'grupos') {
+    // Ranking combinado (1°-4° de la fase final + resto por puntos de grupo)
+    lista = rankingGeneralGrupos().filter(n => jugadoresActivos.includes(n));
+    jugadoresActivos.forEach(n => { if (!lista.includes(n)) lista.push(n); });
+  } else {
+    const standings = getStandings(torneoState.partidos,
+      torneoState.jugadores.filter(j => jugadoresActivos.includes(j.nombre)));
+    lista = standings.map(s => s.nombre);
+  }
 
   // Mover comodín al final para el trío
   if (comodinNombre) {
@@ -1703,6 +1736,7 @@ function generarFixture() {
     torneoState.partidos = buildPartidos(names, 'individuales');
     torneoState.partidosParejas = [];
     torneoState.parejas = [];
+    torneoState.modo = 'simple';
     torneoState.fase = 'individuales';
     torneoState.startDate = new Date().toISOString().split('T')[0];
     timers = {};
@@ -1726,8 +1760,291 @@ function cargarDemo() {
   saveState();
 }
 
+// ===================== MODO 2 GRUPOS =====================
+let _gruposEdit = { g1: [], g2: [] };
+
+// Reparte por ELO en serpentina: equilibra fuerza y separa a los mejores
+function sembrarGrupos(nombres) {
+  const ordenados = [...nombres].sort((a, b) => getElo(b) - getElo(a));
+  const g1 = [], g2 = [];
+  ordenados.forEach((n, i) => {
+    const ronda = Math.floor(i / 2);
+    const primero = (i % 2 === 0);
+    const aG1 = (ronda % 2 === 0) ? primero : !primero; // serpentina
+    (aG1 ? g1 : g2).push(n);
+  });
+  return { g1, g2 };
+}
+
+function abrirDividirGrupos() {
+  const activos = torneoState.jugadores.filter(j => j.presente === true).map(j => j.nombre);
+  if (activos.length < 6) { alert(`Para dividir en 2 grupos necesitas al menos 6 jugadores confirmados. Ahora hay ${activos.length}.`); return; }
+  _gruposEdit = sembrarGrupos(activos);
+  renderDividirGrupos();
+  document.getElementById('modalGrupos').classList.add('open');
+}
+
+function moverAGrupo(nombre, destino) {
+  _gruposEdit.g1 = _gruposEdit.g1.filter(n => n !== nombre);
+  _gruposEdit.g2 = _gruposEdit.g2.filter(n => n !== nombre);
+  (destino === 1 ? _gruposEdit.g1 : _gruposEdit.g2).push(nombre);
+  renderDividirGrupos();
+}
+
+function renderDividirGrupos() {
+  const col = (lista, num) => {
+    const otro = num === 1 ? 2 : 1;
+    const flecha = num === 1 ? '→' : '←';
+    const rows = lista.length ? lista.map(n => {
+      const j = torneoState.jugadores.find(p => p.nombre === n) || { nombre: n, foto: null };
+      return `<div class="player-entry" style="padding:6px 8px">
+        ${avatarEl(j.nombre, j.foto)}
+        <span class="player-name" style="flex:1">${j.nombre} <span style="color:#bbb;font-size:11px;font-weight:400">ELO ${getElo(j.nombre)}</span></span>
+        <button class="btn btn-sm" onclick="moverAGrupo('${n.replace(/'/g,"\\'")}',${otro})" title="Mover a Grupo ${otro}">${flecha}</button>
+      </div>`;
+    }).join('') : '<p style="color:#bbb;font-size:13px;text-align:center;padding:16px 0">Sin jugadores</p>';
+    return `<div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px">
+        <h3 style="margin:0;font-size:15px">Grupo ${num}</h3>
+        <span style="font-size:12px;color:#888">${lista.length} jug.</span>
+      </div>
+      <div style="border:1px solid #eee;border-radius:8px;padding:4px;max-height:46vh;overflow-y:auto">${rows}</div>
+    </div>`;
+  };
+  document.getElementById('gruposCols').innerHTML = `${col(_gruposEdit.g1, 1)}${col(_gruposEdit.g2, 2)}`;
+  const partidosPorGrupo = g => g.length >= 2 ? g.length - 1 : 0;
+  const totalSimple = (() => { const n = _gruposEdit.g1.length + _gruposEdit.g2.length; return n >= 2 ? n - 1 : 0; })();
+  document.getElementById('gruposResumen').innerHTML =
+    `Cada quien juega <strong>${partidosPorGrupo(_gruposEdit.g1)}</strong> / <strong>${partidosPorGrupo(_gruposEdit.g2)}</strong> partidos en su grupo (vs <strong>${totalSimple}</strong> en un solo grupo) + fase final.`;
+  const ok = _gruposEdit.g1.length >= 2 && _gruposEdit.g2.length >= 2;
+  document.getElementById('btnConfirmarGrupos').disabled = !ok;
+}
+
+function confirmarDividirGrupos() {
+  const { g1, g2 } = _gruposEdit;
+  if (g1.length < 2 || g2.length < 2) { alert('Cada grupo necesita al menos 2 jugadores.'); return; }
+  closeModal('modalGrupos');
+  generarGruposFixture(g1, g2);
+}
+
+function generarGruposFixture(g1, g2) {
+  const shuffle = arr => [...arr].sort(() => Math.random() - 0.5);
+  const p1 = buildPartidos(shuffle(g1), 'individuales'); p1.forEach(p => p.grupo = 1);
+  const p2 = buildPartidos(shuffle(g2), 'individuales'); p2.forEach(p => p.grupo = 2);
+  const todos = [...p1, ...p2];
+  todos.forEach((p, i) => { p.id = 'individuales_' + i; });
+
+  torneoState.jugadores.forEach(j => {
+    if (g1.includes(j.nombre)) j.grupo = 1;
+    else if (g2.includes(j.nombre)) j.grupo = 2;
+    else j.grupo = null;
+  });
+
+  torneoState.modo = 'grupos';
+  torneoState.partidos = todos;
+  torneoState.partidosParejas = [];
+  torneoState.parejas = [];
+  torneoState.fase = 'individuales';
+  torneoState.sinDobles = false;
+  torneoState.startDate = new Date().toISOString().split('T')[0];
+  timers = {};
+  filtroJugador = null;
+  document.getElementById('tab3').disabled = true;
+  saveState();
+  updateFooterBtns();
+  switchTab(2);
+}
+
+function jugadoresDeGrupo(num) {
+  return torneoState.jugadores.filter(j => j.grupo === num && !j.seFue).map(j => j.nombre);
+}
+
+function nuevoPlayoffPartido(etapa, j1, j2) {
+  return {
+    id: 'po_' + etapa, ronda: 99, jugador1: j1, jugador2: j2, estado: 'por_jugar',
+    juegos: [], juegoActual: { pts1: 0, pts2: 0 }, mesa: null, ganador: null,
+    duracion: 0, eloActualizado: false, tipo: 'individuales', etapa, grupo: null
+  };
+}
+
+function perdedorDe(m) {
+  return [m.jugador1, m.jugador2].find(n => n !== m.ganador);
+}
+
+// Avanza la fase de grupos: crea semis, luego final + 3er lugar, luego cierra
+function progresarGrupos() {
+  const pds = torneoState.partidos;
+  const grupos = pds.filter(p => p.grupo === 1 || p.grupo === 2);
+  const semi1 = pds.find(p => p.etapa === 'semi1');
+  const semi2 = pds.find(p => p.etapa === 'semi2');
+  const final = pds.find(p => p.etapa === 'final');
+  const tercer = pds.find(p => p.etapa === 'tercer');
+  const hecho = p => p && (p.estado === 'jugado' || p.estado === 'walkover');
+  const gruposListos = grupos.length > 0 && grupos.every(hecho);
+
+  // 1. Terminaron los grupos → crear semifinales cruzadas
+  if (gruposListos && !semi1) {
+    const st1 = getStandings(pds.filter(p => p.grupo === 1), jugadoresDeGrupo(1));
+    const st2 = getStandings(pds.filter(p => p.grupo === 2), jugadoresDeGrupo(2));
+    if (st1.length >= 2 && st2.length >= 2) {
+      pds.push(nuevoPlayoffPartido('semi1', st1[0].nombre, st2[1].nombre));
+      pds.push(nuevoPlayoffPartido('semi2', st2[0].nombre, st1[1].nombre));
+      saveState();
+      return;
+    }
+    // Grupo demasiado chico para playoffs → cerrar con tabla combinada
+    cerrarGrupos();
+    return;
+  }
+
+  // 2. Terminaron las semis → crear Final y 3er lugar
+  if (hecho(semi1) && hecho(semi2) && !final) {
+    pds.push(nuevoPlayoffPartido('final', semi1.ganador, semi2.ganador));
+    pds.push(nuevoPlayoffPartido('tercer', perdedorDe(semi1), perdedorDe(semi2)));
+    saveState();
+    return;
+  }
+
+  // 3. Terminaron Final y 3er lugar → cerrar torneo individual
+  if (hecho(final) && hecho(tercer)) {
+    cerrarGrupos();
+  }
+}
+
+function cerrarGrupos() {
+  torneoState.fase = 'individuales_done';
+  document.getElementById('tab3').disabled = false;
+  updateFooterBtns();
+  saveState();
+  const lug = lugaresFinales();
+  setTimeout(() => {
+    document.getElementById('finIndivMsg').textContent = lug[1] ? `Campeón: ${lug[1]}` : '¡Fase de grupos completada!';
+    document.getElementById('modalFinIndiv').classList.add('open');
+  }, 350);
+}
+
+function lugaresFinales() {
+  const pds = torneoState.partidos;
+  const final = pds.find(p => p.etapa === 'final');
+  const tercer = pds.find(p => p.etapa === 'tercer');
+  const hecho = p => p && (p.estado === 'jugado' || p.estado === 'walkover');
+  const res = {};
+  if (hecho(final)) { res[1] = final.ganador; res[2] = perdedorDe(final); }
+  if (hecho(tercer)) { res[3] = tercer.ganador; res[4] = perdedorDe(tercer); }
+  return res;
+}
+
+// Ranking general para sembrar parejas tras modo grupos: 1°-4° + resto por puntos de grupo
+function rankingGeneralGrupos() {
+  const lug = lugaresFinales();
+  const orden = [];
+  [1, 2, 3, 4].forEach(k => { if (lug[k]) orden.push(lug[k]); });
+  const pds = torneoState.partidos;
+  [1, 2].forEach(g => {
+    getStandings(pds.filter(p => p.grupo === g), jugadoresDeGrupo(g))
+      .forEach(s => { if (!orden.includes(s.nombre)) orden.push(s.nombre); });
+  });
+  return orden;
+}
+
 // ===================== TAB 2: INDIVIDUALES =====================
+function renderIndividualesGrupos() {
+  const container = document.getElementById('individualesContent');
+  if (!container) return;
+  const pds = torneoState.partidos;
+  const g1 = pds.filter(p => p.grupo === 1);
+  const g2 = pds.filter(p => p.grupo === 2);
+  const playoffs = pds.filter(p => p.etapa);
+  const st1 = getStandings(g1, jugadoresDeGrupo(1));
+  const st2 = getStandings(g2, jugadoresDeGrupo(2));
+
+  let banner = '';
+  if (torneoState.fase === 'individuales_done' || torneoState.fase === 'done') {
+    const lug = lugaresFinales();
+    const medallas = ['🥇', '🥈', '🥉', '4°'];
+    const podio = [1, 2, 3, 4].map((k, i) => lug[k]
+      ? `<div style="text-align:center;${i > 0 ? 'opacity:.9' : ''}">
+          <div style="font-size:${i === 0 ? 26 : 20}px">${medallas[i]}</div>
+          <div style="font-size:${i === 0 ? 18 : 14}px;font-weight:${i === 0 ? 900 : 700}">${lug[k]}</div>
+        </div>` : '').join('');
+    banner = `<div class="champion-banner">
+      <div style="display:flex;justify-content:center;gap:24px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">${podio}</div>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        ${!torneoState.sinDobles ? `<button onclick="mostrarPreParejas()" style="padding:9px 18px;border:2px solid #fff;border-radius:6px;background:#fff;color:#000;cursor:pointer;font-size:14px;font-weight:700">🎉 GENERAR PAREJAS</button>` : ''}
+      </div>
+    </div>`;
+  } else if (playoffs.length > 0) {
+    banner = `<div style="background:#000;color:#fff;border-radius:8px;padding:10px 14px;text-align:center;font-weight:700;font-size:14px">🏆 Fase Final en curso — define 1°–4° lugar</div>`;
+  } else {
+    banner = `<div style="background:#f5f5f5;border-radius:8px;padding:10px 14px;text-align:center;color:#666;font-size:13px">Fase de grupos — al terminar ambos grupos comienza la fase final.</div>`;
+  }
+
+  const busy = getJugadoresOcupados(pds);
+  const chips = torneoState.jugadores.filter(j => j.grupo === 1 || j.grupo === 2).map(j => {
+    let cls = 'player-chip';
+    if (j.seFue) cls += ' chip-retired';
+    else if (busy.has(j.nombre)) cls += ' chip-playing';
+    else cls += ' chip-done';
+    if (filtroJugador === j.nombre) cls += ' chip-filtered';
+    return `<span class="${cls}" onclick="${j.seFue ? '' : `setFiltroJugador('${j.nombre}')`}" style="${j.seFue ? '' : 'cursor:pointer'}">
+      ${avatarEl(j.nombre, j.foto)} <span style="font-size:10px;font-weight:900;color:#999;margin-right:2px">G${j.grupo}</span> ${j.nombre}
+      <button style="background:none;border:none;cursor:pointer;color:inherit;font-size:15px;margin-left:4px;opacity:.7;padding:0 3px" onclick="event.stopPropagation();openH2HModal('${j.nombre.replace(/'/g,"\\'")}');" title="Historial H2H">📊</button>
+      ${!j.seFue && torneoState.fase === 'individuales' && playoffs.length === 0 ? `<button style="background:none;border:none;cursor:pointer;color:inherit;font-size:17px;margin-left:2px;padding:0 3px" onclick="event.stopPropagation();retirarJugador('${j.nombre}')" title="Retirar">⋯</button>` : ''}
+    </span>`;
+  }).join('');
+  const filtroLabel = filtroJugador
+    ? `<div style="font-size:11px;color:#666;margin-top:8px">Filtrando: <strong>${filtroJugador}</strong> — <a href="#" onclick="setFiltroJugador(null);return false" style="color:#000">Ver todos</a></div>`
+    : '';
+
+  container.innerHTML = `
+    <div class="indiv-header">${banner}</div>
+    <div class="grupos-body">
+      <div class="grupo-col">
+        <div class="grupo-tag">Grupo 1</div>
+        <div id="tablaG1"></div>
+        <div id="cardsG1" style="margin-top:10px"></div>
+      </div>
+      <div class="grupo-col">
+        <div class="grupo-tag">Grupo 2</div>
+        <div id="tablaG2"></div>
+        <div id="cardsG2" style="margin-top:10px"></div>
+      </div>
+    </div>
+    <div id="playoffsSection" style="padding:0 16px"></div>
+    <div style="padding:14px 16px 80px">
+      <div style="font-size:11px;font-weight:600;color:#999;letter-spacing:1px;margin-bottom:6px;text-transform:uppercase">Jugadores</div>
+      ${filtroLabel}
+      <div>${chips}</div>
+    </div>
+  `;
+
+  renderMiniTabla('tablaG1', st1);
+  renderMatchCards('cardsG1', g1, 'individuales');
+  renderMiniTabla('tablaG2', st2);
+  renderMatchCards('cardsG2', g2, 'individuales');
+  renderPlayoffs('playoffsSection');
+}
+
+function renderPlayoffs(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const pos = torneoState.partidos.filter(p => p.etapa);
+  if (!pos.length) { el.innerHTML = ''; return; }
+  const labels = { semi1: '🎾 Semifinal 1', semi2: '🎾 Semifinal 2', final: '🏆 Final', tercer: '🥉 Partido por 3er lugar' };
+  let html = '<h3 style="margin:18px 0 4px">Fase Final</h3>';
+  ['semi1', 'semi2', 'final', 'tercer'].forEach(et => {
+    const m = pos.find(p => p.etapa === et);
+    if (!m) return;
+    html += `<div class="playoff-label">${labels[et]}</div>`;
+    if (m.estado === 'jugando' || m.estado === 'pausado') html += renderPlayingCard(m, 'individuales', '');
+    else if (m.estado === 'por_jugar') html += renderPendingCard(m, 'individuales', '');
+    else html += renderDoneCard(m, 'individuales', '');
+  });
+  el.innerHTML = html;
+}
+
 function renderIndividuales() {
+  if (torneoState.modo === 'grupos' && torneoState.fase !== 'config') { renderIndividualesGrupos(); return; }
   const container = document.getElementById('individualesContent');
   if (!container) return;
 
@@ -2137,8 +2454,14 @@ function renderParejas() {
   }
 
   if (torneoState.sinDobles) {
-    const st = getStandings(torneoState.partidos, torneoState.jugadores.filter(j => j.presente === true && !j.seFue));
-    const camp = st[0];
+    let campNombre;
+    if (torneoState.modo === 'grupos') {
+      campNombre = lugaresFinales()[1];
+    } else {
+      const st = getStandings(torneoState.partidos, torneoState.jugadores.filter(j => j.presente === true && !j.seFue));
+      campNombre = st[0] && st[0].nombre;
+    }
+    const camp = campNombre ? { nombre: campNombre } : null;
     container.innerHTML = `<div class="champion-banner" style="margin:0">
       <div style="font-size:36px;margin-bottom:8px">🏆</div>
       <div style="font-size:20px;font-weight:900">${camp ? camp.nombre : '—'}</div>
@@ -2237,7 +2560,33 @@ function renderTabla() {
   `;
   container.innerHTML = html;
 
-  if (hasIndiv) {
+  if (hasIndiv && torneoState.modo === 'grupos') {
+    const pds = torneoState.partidos;
+    const g1 = pds.filter(p => p.grupo === 1);
+    const g2 = pds.filter(p => p.grupo === 2);
+    const playoffs = pds.filter(p => p.etapa);
+    const lug = lugaresFinales();
+    const podioHtml = Object.keys(lug).length ? `<div style="background:#000;color:#fff;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;gap:20px;flex-wrap:wrap;justify-content:center">
+      ${[['🥇',1],['🥈',2],['🥉',3],['4°',4]].map(([m,k]) => lug[k] ? `<span style="font-weight:700">${m} ${lug[k]}</span>` : '').join('')}
+    </div>` : '';
+    const poHtml = playoffs.length ? `<h3 style="margin:20px 0 8px">Fase Final</h3>` +
+      ['semi1','semi2','final','tercer'].map(et => {
+        const m = playoffs.find(p => p.etapa === et); if (!m) return '';
+        const lbl = {semi1:'Semifinal 1',semi2:'Semifinal 2',final:'🏆 Final',tercer:'🥉 3er lugar'}[et];
+        const done = m.estado === 'jugado' || m.estado === 'walkover';
+        const sc = done ? (m.juegos||[]).map(g => `${g.pts1}-${g.pts2}`).join(', ') : '';
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border:1px solid #eee;border-radius:8px;margin-bottom:6px;font-size:13px">
+          <span><strong style="color:#888;font-size:11px;margin-right:8px">${lbl}</strong>${getName(m.jugador1)} vs ${getName(m.jugador2)}</span>
+          <span>${done ? `<strong style="color:#22C55E">${getName(m.ganador)}</strong> <span style="color:#999;font-family:monospace;margin-left:6px">${sc}</span>` : '<span style="color:#bbb">por jugar</span>'}</span>
+        </div>`;
+      }).join('') : '';
+    document.getElementById('tablaIndiv').innerHTML = podioHtml +
+      '<h3 style="margin-bottom:8px">Grupo 1</h3><div id="mtxG1"></div>' +
+      '<h3 style="margin:20px 0 8px">Grupo 2</h3><div id="mtxG2"></div>' + poHtml;
+    renderFullMatrix('mtxG1', g1, jugadoresDeGrupo(1), 'individuales');
+    renderFullMatrix('mtxG2', g2, jugadoresDeGrupo(2), 'individuales');
+    renderTimeStats('timeStatsIndiv', torneoState.partidos, torneoState.jugadores.filter(j => (j.grupo===1||j.grupo===2) && !j.seFue).map(j => j.nombre));
+  } else if (hasIndiv) {
     const jugadores = torneoState.jugadores.filter(j => j.presente === true && !j.seFue).map(j => j.nombre);
     renderFullMatrix('tablaIndiv', torneoState.partidos, jugadores, 'individuales');
     renderTimeStats('timeStatsIndiv', torneoState.partidos, jugadores);
@@ -3064,7 +3413,7 @@ function crearNuevaLiga(nombre) {
 
   const newId = 'liga_' + Date.now();
   const newState = {
-    fase: 'config', jugadores: [], mesas: torneoState.mesas, formato: torneoState.formato,
+    fase: 'config', modo: 'simple', jugadores: [], mesas: torneoState.mesas, formato: torneoState.formato,
     partidos: [], partidosParejas: [], parejas: [], activeTab: 0, startDate: null
   };
   newState.jugadores = cargarJugadoresHistorico();
@@ -3103,7 +3452,7 @@ function switchLiga(id) {
   ligasContainer.activeId = id;
   saveLigas();
   // Reset to defaults before loading so no stale state leaks through
-  torneoState = { fase:'config', jugadores:[], mesas:3, formato:1, partidos:[], partidosParejas:[], parejas:[], activeTab:0, startDate:null };
+  torneoState = { fase:'config', modo:'simple', jugadores:[], mesas:3, formato:1, partidos:[], partidosParejas:[], parejas:[], activeTab:0, startDate:null };
   loadState();
   torneoState.jugadores.forEach(j => { if (j.presente === undefined) j.presente = true; });
   [...(torneoState.partidos || []), ...(torneoState.partidosParejas || [])].forEach(m => {
