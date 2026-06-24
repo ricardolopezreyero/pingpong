@@ -2168,7 +2168,7 @@ function renderIndividuales() {
           style="padding:9px 18px;border:2px solid #fff;border-radius:6px;background:#fff;color:#000;cursor:pointer;font-size:14px;font-weight:700">
           🎉 GENERAR PAREJAS
         </button>` : ''}
-        <button onclick="exportarCanvas('individuales')"
+        <button onclick="descargarCuadroTipo('individuales')"
           style="padding:9px 18px;border:2px solid #fff;border-radius:6px;background:transparent;color:#fff;cursor:pointer;font-size:14px;font-weight:700">
           📥 Descargar cuadro
         </button>
@@ -2585,7 +2585,7 @@ function renderParejas() {
           <div style="font-size:12px;color:#aaa;margin-top:2px">${segundo.pg} victorias</div>
         </div>` : ''}
       </div>
-      <button onclick="exportarCanvas('parejas')"
+      <button onclick="descargarCuadroTipo('parejas')"
         style="padding:9px 18px;border:2px solid #fff;border-radius:6px;background:transparent;color:#fff;cursor:pointer;font-size:14px;font-weight:700">
         📥 Descargar cuadro
       </button>
@@ -2675,8 +2675,8 @@ function renderTabla() {
     document.getElementById('tablaIndiv').innerHTML = podioHtml +
       '<h3 style="margin-bottom:8px">Grupo 1</h3><div id="mtxG1"></div>' +
       '<h3 style="margin:20px 0 8px">Grupo 2</h3><div id="mtxG2"></div>' + poHtml;
-    renderFullMatrix('mtxG1', g1, jugadoresDeGrupo(1), 'individuales');
-    renderFullMatrix('mtxG2', g2, jugadoresDeGrupo(2), 'individuales');
+    renderFullMatrix('mtxG1', g1, jugadoresDeGrupo(1), 'individuales', 'GRUPO 1');
+    renderFullMatrix('mtxG2', g2, jugadoresDeGrupo(2), 'individuales', 'GRUPO 2');
     renderTimeStats('timeStatsIndiv', torneoState.partidos, torneoState.jugadores.filter(j => (j.grupo===1||j.grupo===2) && !j.seFue).map(j => j.nombre));
   } else if (hasIndiv) {
     const jugadores = torneoState.jugadores.filter(j => j.presente === true && !j.seFue).map(j => j.nombre);
@@ -2706,9 +2706,13 @@ function showTablaSection(sec) {
   document.getElementById('tabTabParejas').className = sec === 'parejas' ? 'btn btn-primary' : 'btn';
 }
 
-function renderFullMatrix(containerId, partidos, jugadores, tipo) {
+function renderFullMatrix(containerId, partidos, jugadores, tipo, titulo) {
   const el = document.getElementById(containerId);
   if (!el) return;
+
+  titulo = titulo || (tipo === 'parejas' ? 'PAREJAS' : 'INDIVIDUALES');
+  // Guardar datos para exportar el cuadro de esta matriz específica
+  _cuadroReg[containerId] = { partidos, jugadores, tipo, titulo };
 
   const standings = getStandings(partidos, jugadores);
   const ordered = standings.map(s => s.nombre);
@@ -2792,7 +2796,8 @@ function renderFullMatrix(containerId, partidos, jugadores, tipo) {
     </div>
     <div style="margin-top:12px">
       <span style="color:#666;font-size:13px">Pendientes: ${partidos.filter(p => p.estado === 'por_jugar').length}</span>
-      <button class="btn btn-sm" style="margin-left:12px" onclick="exportarCanvas('${tipo}')">📥 Descargar cuadro</button>
+      <button class="btn btn-sm" style="margin-left:12px" onclick="exportarCuadroReg('${containerId}')">📥 Descargar cuadro</button>
+      <button class="btn btn-sm" onclick="exportarCanvas('${tipo}')" title="Descargar la lista de clasificación (PNG)">📋 Descargar lista</button>
     </div>
   `;
 
@@ -3135,6 +3140,209 @@ function generarCanvasExport(tipo) {
   ctx.fillStyle = '#CCCCCC';
   ctx.textAlign = 'center';
   ctx.fillText('Generado con Ping Pong XTMO App', W / 2, y + 36);
+
+  return canvas;
+}
+
+// ===================== EXPORT: CUADRO (matriz cruzada) =====================
+const _cuadroReg = {};
+
+function exportarCuadroReg(containerId) {
+  const d = _cuadroReg[containerId];
+  if (!d) { alert('No se pudo generar el cuadro.'); return; }
+  descargarCuadro(d.partidos, d.jugadores, d.tipo, d.titulo);
+}
+
+function descargarCuadroTipo(tipo) {
+  if (tipo === 'parejas') {
+    descargarCuadro(torneoState.partidosParejas, (torneoState.parejas || []).map(p => p.nombre), 'parejas', 'PAREJAS');
+  } else if (torneoState.modo === 'grupos') {
+    descargarCuadro(torneoState.partidos.filter(p => p.grupo === 1), jugadoresDeGrupo(1), 'individuales', 'GRUPO 1');
+    descargarCuadro(torneoState.partidos.filter(p => p.grupo === 2), jugadoresDeGrupo(2), 'individuales', 'GRUPO 2');
+  } else {
+    descargarCuadro(torneoState.partidos, torneoState.jugadores.filter(j => j.presente === true && !j.seFue).map(j => j.nombre), 'individuales', 'INDIVIDUALES');
+  }
+}
+
+function descargarCuadro(partidos, jugadores, tipo, titulo) {
+  if (!partidos || partidos.filter(p => p.estado === 'jugado' || p.estado === 'walkover').length === 0) {
+    alert('Todavía no hay resultados para armar el cuadro.');
+    return;
+  }
+  const canvas = generarCanvasCuadro(partidos, jugadores, tipo, titulo);
+  const date = (() => { const n = new Date(); return n.toISOString().split('T')[0].replace(/-/g,'_') + '_' + String(n.getHours()).padStart(2,'0') + String(n.getMinutes()).padStart(2,'0'); })();
+  const link = document.createElement('a');
+  link.download = `PPTORNEO_CUADRO_${titulo.replace(/\s+/g,'_')}_${date}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+function generarCanvasCuadro(partidos, jugadores, tipo, titulo) {
+  const standings = getStandings(partidos, jugadores);
+  const ordered = standings.map(s => s.nombre);
+  const n = standings.length;
+  const fecha = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  // Lookup de resultados (igual que en renderFullMatrix)
+  const resultMap = {};
+  partidos.forEach(p => {
+    const a = p.pareja1Nombre || getName(p.jugador1);
+    const b = p.pareja2Nombre || getName(p.jugador2);
+    resultMap[`${a}|${b}`] = p;
+    resultMap[`${b}|${a}`] = { ...p, flipped: true };
+  });
+
+  // Layout
+  const PAD = 40;
+  const HEADER_H = 124;
+  const C_NUM = 44, C_NAME = 210, C_OPP = 42, C_STAT = 52, C_ELO = 62;
+  const STATS = ['PJ', 'PG', 'PP', 'Pts', 'Dif', 'ELO'];
+  const STAT_W = [C_STAT, C_STAT, C_STAT, C_STAT, C_STAT, C_ELO];
+  const gridW = C_NUM + C_NAME + n * C_OPP + C_STAT * 5 + C_ELO;
+  const W = Math.max(880, PAD * 2 + gridW);
+  const HEAD_ROW_H = 40, ROW_H = 42;
+  const tableTop = HEADER_H + 28;
+  const TOTAL_H = tableTop + HEAD_ROW_H + n * ROW_H + 60;
+
+  const scale = 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = W * scale;
+  canvas.height = TOTAL_H * scale;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+
+  // Fondo
+  ctx.fillStyle = '#F8F8F8';
+  ctx.fillRect(0, 0, W, TOTAL_H);
+
+  // Header negro + acento amarillo
+  ctx.fillStyle = '#0A0A0A';
+  ctx.fillRect(0, 0, W, HEADER_H);
+  ctx.fillStyle = '#FACC15';
+  ctx.fillRect(0, HEADER_H - 4, W, 4);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = 'bold 40px system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('🏓  PING PONG XTMO', PAD, 52);
+  ctx.font = '16px system-ui, sans-serif';
+  ctx.fillStyle = '#AAAAAA';
+  ctx.fillText('Cuadro de resultados · ' + fecha, PAD, 84);
+
+  // Badge con el título
+  const badgeW = Math.max(150, ctx.measureText(titulo).width + 80);
+  ctx.fillStyle = '#FACC15';
+  ctx.beginPath();
+  ctx.roundRect(W - PAD - badgeW, 26, badgeW, 44, 8);
+  ctx.fill();
+  ctx.fillStyle = '#0A0A0A';
+  ctx.font = 'bold 18px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(titulo, W - PAD - badgeW / 2, 54);
+
+  // Posiciones X de columnas
+  const tx = PAD, ty = tableTop;
+  const oppX0 = tx + C_NUM + C_NAME;
+  const statX0 = oppX0 + n * C_OPP;
+
+  // Cabecera de la tabla (fila negra con números)
+  ctx.fillStyle = '#0A0A0A';
+  ctx.fillRect(tx, ty, gridW, HEAD_ROW_H);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = 'bold 14px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('#', tx + C_NUM / 2, ty + HEAD_ROW_H / 2 + 5);
+  ctx.textAlign = 'left';
+  ctx.fillText('Jugador', tx + C_NUM + 12, ty + HEAD_ROW_H / 2 + 5);
+  ctx.textAlign = 'center';
+  for (let i = 0; i < n; i++) ctx.fillText(String(i + 1), oppX0 + i * C_OPP + C_OPP / 2, ty + HEAD_ROW_H / 2 + 5);
+  let hsx = statX0;
+  STATS.forEach((st, i) => { ctx.fillText(st, hsx + STAT_W[i] / 2, ty + HEAD_ROW_H / 2 + 5); hsx += STAT_W[i]; });
+
+  // Filas
+  let ry = ty + HEAD_ROW_H;
+  standings.forEach((s, ri) => {
+    ctx.fillStyle = ri === 0 ? '#FFFBEB' : (ri % 2 === 0 ? '#FAFAFA' : '#FFFFFF');
+    ctx.fillRect(tx, ry, gridW, ROW_H);
+
+    // #
+    ctx.fillStyle = ri === 0 ? '#0A0A0A' : '#333';
+    ctx.font = (ri === 0 ? 'bold ' : '') + '14px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(String(ri + 1), tx + C_NUM / 2, ry + ROW_H / 2 + 5);
+
+    // Nombre (truncado si no cabe)
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#0A0A0A';
+    ctx.font = (ri === 0 ? 'bold ' : '') + '15px system-ui, sans-serif';
+    let nm = s.nombre;
+    if (ctx.measureText(nm).width > C_NAME - 18) {
+      while (nm.length > 3 && ctx.measureText(nm + '…').width > C_NAME - 18) nm = nm.slice(0, -1);
+      nm += '…';
+    }
+    ctx.fillText(nm, tx + C_NUM + 12, ry + ROW_H / 2 + 5);
+
+    // Celdas de cruce
+    for (let ci = 0; ci < n; ci++) {
+      const opp = ordered[ci];
+      const cellX = oppX0 + ci * C_OPP;
+      if (opp === s.nombre) { ctx.fillStyle = '#0A0A0A'; ctx.fillRect(cellX, ry, C_OPP, ROW_H); continue; }
+      const p = resultMap[`${s.nombre}|${opp}`];
+      ctx.textAlign = 'center';
+      if (!p) { ctx.fillStyle = '#CFCFCF'; ctx.font = '15px system-ui, sans-serif'; ctx.fillText('·', cellX + C_OPP / 2, ry + ROW_H / 2 + 5); continue; }
+      if (p.estado === 'por_jugar') continue;
+      if (p.estado === 'jugando') { ctx.fillStyle = '#1d4ed8'; ctx.fillRect(cellX, ry, C_OPP, ROW_H); ctx.fillStyle = '#fff'; ctx.font = '12px system-ui, sans-serif'; ctx.fillText('▶', cellX + C_OPP / 2, ry + ROW_H / 2 + 4); continue; }
+      if (p.estado === 'walkover') { ctx.fillStyle = '#F3F4F6'; ctx.fillRect(cellX, ry, C_OPP, ROW_H); ctx.fillStyle = '#9CA3AF'; ctx.font = 'bold 10px system-ui, sans-serif'; ctx.fillText('W.O.', cellX + C_OPP / 2, ry + ROW_H / 2 + 4); continue; }
+      // Jugado
+      const gn = p.pareja1Nombre ? (p.flipped ? p.pareja2Nombre : p.pareja1Nombre) : getName(p.ganador);
+      const isWin = gn === s.nombre;
+      let disp;
+      if (torneoState.formato === 1) {
+        const g = p.juegos[0];
+        disp = g ? (p.flipped ? g.pts2 : g.pts1) : '?';
+      } else {
+        disp = p.juegos.filter(g => g.ganador === (isWin ? 2 : 1)).length;
+      }
+      ctx.fillStyle = isWin ? '#14532d' : '#7f1d1d';
+      ctx.fillRect(cellX, ry, C_OPP, ROW_H);
+      ctx.fillStyle = isWin ? '#86efac' : '#fca5a5';
+      ctx.font = 'bold 15px system-ui, sans-serif';
+      ctx.fillText(isWin ? 'G' : String(disp), cellX + C_OPP / 2, ry + ROW_H / 2 + 5);
+    }
+
+    // Estadísticas
+    const dif = s.gf - s.gc;
+    const statVals = [s.pj, s.pg, s.pp, s.pts, (dif >= 0 ? '+' : '') + dif, getElo(s.nombre)];
+    let stx = statX0;
+    statVals.forEach((v, i) => {
+      ctx.fillStyle = i === 5 ? '#BBBBBB' : (i === 3 ? '#0A0A0A' : '#333');
+      ctx.font = (i === 3 ? 'bold ' : '') + (i === 5 ? '12px' : '14px') + ' system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(String(v), stx + STAT_W[i] / 2, ry + ROW_H / 2 + 5);
+      stx += STAT_W[i];
+    });
+
+    ry += ROW_H;
+  });
+
+  // Líneas de la cuadrícula
+  ctx.strokeStyle = '#E5E5E5';
+  ctx.lineWidth = 1;
+  for (let r = 0; r <= n; r++) { const yy = ty + HEAD_ROW_H + r * ROW_H; ctx.beginPath(); ctx.moveTo(tx, yy); ctx.lineTo(tx + gridW, yy); ctx.stroke(); }
+  const vlines = [tx + C_NUM, oppX0];
+  for (let i = 1; i <= n; i++) vlines.push(oppX0 + i * C_OPP);
+  let s2 = statX0; STAT_W.forEach(w => { vlines.push(s2); s2 += w; }); vlines.push(s2);
+  vlines.forEach(vx => { ctx.beginPath(); ctx.moveTo(vx, ty); ctx.lineTo(vx, ty + HEAD_ROW_H + n * ROW_H); ctx.stroke(); });
+
+  // Borde del 1er lugar
+  ctx.strokeStyle = '#0A0A0A';
+  ctx.lineWidth = 2.5;
+  ctx.strokeRect(tx, ty + HEAD_ROW_H, gridW, ROW_H);
+
+  // Footer
+  ctx.fillStyle = '#CCCCCC';
+  ctx.font = '12px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Generado con Ping Pong XTMO App', W / 2, TOTAL_H - 22);
 
   return canvas;
 }
