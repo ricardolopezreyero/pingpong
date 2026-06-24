@@ -1007,6 +1007,7 @@ function checkPhaseComplete(partidos, tipo) {
     } else {
       torneoState.fase = 'done';
       updateFooterBtns();
+      registrarSesion();
       saveState();
     }
   }
@@ -1016,9 +1017,47 @@ function terminarLigaSinDobles() {
   closeModal('modalFinIndiv');
   torneoState.fase = 'done';
   torneoState.sinDobles = true;
+  registrarSesion();
   saveState();
   updateFooterBtns();
   renderAll();
+}
+
+// Archiva la sesión terminada en el historial (campeón individual y de parejas).
+// Idempotente: no duplica si ya se registró esta liga.
+function registrarSesion() {
+  if (torneoState.sesionRegistrada) return;
+
+  let campeonIndiv = null;
+  if (torneoState.modo === 'grupos') {
+    campeonIndiv = lugaresFinales()[1] || null;
+  } else {
+    const st = getStandings(torneoState.partidos, torneoState.jugadores.filter(j => j.presente === true && !j.seFue));
+    campeonIndiv = st[0] ? st[0].nombre : null;
+  }
+
+  let campeonParejas = null;
+  if (torneoState.partidosParejas && torneoState.partidosParejas.length > 0) {
+    const stp = getStandings(torneoState.partidosParejas, (torneoState.parejas || []).map(p => p.nombre));
+    campeonParejas = stp[0] ? stp[0].nombre : null;
+  }
+
+  const numJug = (torneoState.modo === 'grupos')
+    ? torneoState.jugadores.filter(j => j.grupo === 1 || j.grupo === 2).length
+    : torneoState.jugadores.filter(j => j.presente === true).length;
+
+  ligaData.sesiones = ligaData.sesiones || [];
+  ligaData.sesiones.push({
+    fecha: torneoState.startDate || new Date().toISOString().split('T')[0],
+    jugadores: numJug,
+    campeonIndiv,
+    campeonParejas,
+    formato: torneoState.formato
+  });
+  saveLiga();
+
+  torneoState.sesionRegistrada = true;
+  if (_currentCredential) syncToCloud();
 }
 
 // ===================== PLAYER RETIREMENT =====================
@@ -1259,6 +1298,11 @@ function generarParejas(jugadoresActivos, comodinNombre = null) {
         });
       }
     }
+  }
+
+  if (parejas.length < 2) {
+    alert('Se necesitan al menos 4 jugadores (2 parejas) para la fase de dobles.');
+    return;
   }
 
   torneoState.parejas = parejas;
@@ -1548,6 +1592,7 @@ function addPlayer() {
   const input = document.getElementById('nuevoJugador');
   const nombre = input.value.trim().toUpperCase();
   if (!nombre) return;
+  if (torneoState.fase !== 'config') { alert('El torneo ya empezó. No puedes agregar jugadores a mitad del fixture.'); return; }
   if (torneoState.jugadores.length >= 30) { alert('Máximo 30 jugadores.'); return; }
   if (torneoState.jugadores.find(j => j.nombre === nombre)) { alert('Jugador ya existe.'); return; }
   torneoState.jugadores.push({ nombre, foto: null, seFue: false, presente: true });
@@ -1557,6 +1602,17 @@ function addPlayer() {
 }
 
 function removePlayer(idx) {
+  const jug = torneoState.jugadores[idx];
+  if (!jug) return;
+  // Si el torneo está en curso y el jugador tiene partidos, no eliminar (corrompe el fixture)
+  if (torneoState.fase !== 'config') {
+    const enPartidos = [...(torneoState.partidos || []), ...(torneoState.partidosParejas || [])]
+      .some(p => matchInvolves(p, jug.nombre));
+    if (enPartidos) {
+      alert(`${jug.nombre} ya tiene partidos en este torneo. Usa "Retirar" (⋯) en su lugar para marcarlos como W.O.`);
+      return;
+    }
+  }
   torneoState.jugadores.splice(idx, 1);
   saveState();
   renderPlayerList();
@@ -1752,6 +1808,7 @@ function generarFixture() {
     torneoState.partidosParejas = [];
     torneoState.parejas = [];
     torneoState.modo = 'simple';
+    torneoState.sesionRegistrada = false;
     torneoState.fase = 'individuales';
     torneoState.startDate = new Date().toISOString().split('T')[0];
     timers = {};
@@ -1861,6 +1918,7 @@ function generarGruposFixture(g1, g2) {
   torneoState.parejas = [];
   torneoState.fase = 'individuales';
   torneoState.sinDobles = false;
+  torneoState.sesionRegistrada = false;
   torneoState.startDate = new Date().toISOString().split('T')[0];
   timers = {};
   filtroJugador = null;
@@ -3478,13 +3536,13 @@ function confirmarNuevaLiga() {
   });
 }
 
-function switchLiga(id) {
-  saveState();
+// Carga la liga activa en torneoState: limpia timers viejos, restablece estado
+// por defecto y reinicia los cronómetros de los partidos en juego. NO guarda
+// (para no escribir sobre una liga recién borrada).
+function cargarLigaActiva() {
   Object.values(timers).forEach(t => { if (t.interval) clearInterval(t.interval); });
   timers = {};
   filtroJugador = null;
-  ligasContainer.activeId = id;
-  saveLigas();
   // Reset to defaults before loading so no stale state leaks through
   torneoState = { fase:'config', modo:'simple', jugadores:[], mesas:3, formato:1, partidos:[], partidosParejas:[], parejas:[], activeTab:0, startDate:null };
   loadState();
@@ -3501,6 +3559,13 @@ function switchLiga(id) {
   document.getElementById('tab3').disabled = !(torneoState.fase === 'parejas' || torneoState.fase === 'done' || torneoState.fase === 'individuales_done');
   document.getElementById('mesasCount').textContent = torneoState.mesas;
   updateFooterBtns();
+}
+
+function switchLiga(id) {
+  saveState();
+  ligasContainer.activeId = id;
+  saveLigas();
+  cargarLigaActiva();
   renderAll();
   switchTab(0);
 }
@@ -3509,14 +3574,19 @@ function deleteLiga(id) {
   if (ligasContainer.ligas.length <= 1) { alert('No puedes eliminar la única liga.'); return; }
   const liga = ligasContainer.ligas.find(l => l.id === id);
   if (!confirm(`¿Eliminar la liga "${liga ? liga.nombre : ''}"? No se puede deshacer.`)) return;
+  const eraActiva = ligasContainer.activeId === id;
   ligasContainer.ligas = ligasContainer.ligas.filter(l => l.id !== id);
-  if (ligasContainer.activeId === id) {
+  if (eraActiva) {
+    // La liga borrada era la activa: cambiar a otra sin guardar su estado
     ligasContainer.activeId = ligasContainer.ligas[0].id;
-    loadState();
-    torneoState.jugadores.forEach(j => { if (j.presente === undefined) j.presente = true; });
+    saveLigas();
+    cargarLigaActiva(); // limpia timers de la liga borrada y arranca los de la nueva
+    renderAll();
+    switchTab(0);
+  } else {
+    saveLigas();
+    renderAll();
   }
-  saveLigas();
-  renderAll();
 }
 
 function continuarLiga() {
