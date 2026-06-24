@@ -962,6 +962,14 @@ function walkoverPartido(matchId, tipo) {
   const gn = Array.isArray(ganador) ? ganador.join('/') : ganador;
   const ln = Array.isArray(perdedor) ? perdedor.join('/') : perdedor;
 
+  // Si estaba en juego/pausado, soltar cronómetro y mesa
+  if (match.estado === 'jugando' || match.estado === 'pausado') {
+    stopMatchTimer(match.id);
+    match.mesa = null;
+  }
+  // W.O. limpio: no arrastrar el marcador parcial (mantiene consistente la Dif)
+  match.juegos = [];
+  match.juegoActual = { pts1: 0, pts2: 0 };
   match.estado = 'walkover';
   match.ganador = ganador;
   if (!match.eloActualizado) {
@@ -974,6 +982,10 @@ function walkoverPartido(matchId, tipo) {
 }
 
 function checkPhaseComplete(partidos, tipo) {
+  // No hay nada que completar si esa fase aún no tiene partidos generados.
+  // (Evita que al retirar a un jugador en la fase individual se marque
+  //  el torneo como 'done' por culpa de partidosParejas vacío.)
+  if (!partidos || partidos.length === 0) return;
   // Modo 2 grupos: la progresión (semis → final → cierre) la maneja progresarGrupos
   if (tipo === 'individuales' && torneoState.modo === 'grupos') {
     progresarGrupos();
@@ -1038,6 +1050,9 @@ function doRetiro(nombre) {
         p.mesa = null;
       }
 
+      // W.O. limpio: descartar el marcador parcial del partido sin terminar
+      p.juegos = [];
+      p.juegoActual = { pts1: 0, pts2: 0 };
       p.estado = 'walkover';
       p.ganador = enJ1 ? p.jugador2 : p.jugador1;
       if (!p.eloActualizado && tipo === 'individuales') {
@@ -1859,6 +1874,11 @@ function jugadoresDeGrupo(num) {
   return torneoState.jugadores.filter(j => j.grupo === num && !j.seFue).map(j => j.nombre);
 }
 
+function esRetirado(nombre) {
+  const j = torneoState.jugadores.find(p => p.nombre === nombre);
+  return j ? !!j.seFue : false;
+}
+
 function nuevoPlayoffPartido(etapa, j1, j2) {
   return {
     id: 'po_' + etapa, ronda: 99, jugador1: j1, jugador2: j2, estado: 'por_jugar',
@@ -1884,8 +1904,9 @@ function progresarGrupos() {
 
   // 1. Terminaron los grupos → crear semifinales cruzadas
   if (gruposListos && !semi1) {
-    const st1 = getStandings(pds.filter(p => p.grupo === 1), jugadoresDeGrupo(1));
-    const st2 = getStandings(pds.filter(p => p.grupo === 2), jugadoresDeGrupo(2));
+    // Solo jugadores activos pueden clasificar (un retirado no puede ser finalista)
+    const st1 = getStandings(pds.filter(p => p.grupo === 1), jugadoresDeGrupo(1)).filter(s => !esRetirado(s.nombre));
+    const st2 = getStandings(pds.filter(p => p.grupo === 2), jugadoresDeGrupo(2)).filter(s => !esRetirado(s.nombre));
     if (st1.length >= 2 && st2.length >= 2) {
       pds.push(nuevoPlayoffPartido('semi1', st1[0].nombre, st2[1].nombre));
       pds.push(nuevoPlayoffPartido('semi2', st2[0].nombre, st1[1].nombre));
@@ -1931,6 +1952,16 @@ function lugaresFinales() {
   const res = {};
   if (hecho(final)) { res[1] = final.ganador; res[2] = perdedorDe(final); }
   if (hecho(tercer)) { res[3] = tercer.ganador; res[4] = perdedorDe(tercer); }
+  // Respaldo: torneo cerrado sin fase final (grupo demasiado chico tras retiros)
+  // → derivar 1°-4° de la tabla combinada de grupos (sin recursión).
+  if (!res[1] && torneoState.fase === 'individuales_done') {
+    const combo = [];
+    [1, 2].forEach(g => getStandings(pds.filter(p => p.grupo === g), jugadoresDeGrupo(g))
+      .filter(s => !esRetirado(s.nombre))
+      .forEach(s => combo.push(s)));
+    combo.sort((a, b) => b.pts - a.pts || (b.gf - b.gc) - (a.gf - a.gc));
+    [1, 2, 3, 4].forEach((k, i) => { if (combo[i] && !res[k]) res[k] = combo[i].nombre; });
+  }
   return res;
 }
 
@@ -2249,6 +2280,7 @@ function renderPlayingCard(m, tipo, num) {
             ? `<button onclick="reanudarPartido('${m.id}','${tipo}')" style="padding:3px 10px;border:1px solid #F59E0B;border-radius:5px;background:transparent;color:#F59E0B;cursor:pointer;font-size:12px;font-weight:700">▶ Reanudar</button>`
             : `<button onclick="pausarPartido('${m.id}','${tipo}')" style="padding:3px 10px;border:1px solid #444;border-radius:5px;background:transparent;color:#888;cursor:pointer;font-size:12px">⏸</button>`
           }
+          <button onclick="walkoverPartido('${m.id}','${tipo}')" title="Terminar como W.O. (un jugador abandona)" style="padding:3px 10px;border:1px solid #b45309;border-radius:5px;background:transparent;color:#d97706;cursor:pointer;font-size:12px;font-weight:700">⚑ W.O.</button>
         </div>
       </div>
 
@@ -2337,7 +2369,9 @@ function renderPendingCard(m, tipo, num) {
         <span style="color:#666">vs</span>
         ${avatarEl(n2, p2.foto)}
         <strong>${n2}</strong>
-        <span style="margin-left:auto">
+        <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
+          <button class="btn btn-sm" onclick="walkoverPartido('${m.id}','${tipo}')"
+            title="Marcar W.O. (un jugador no se presenta)" style="color:#b45309">W.O.</button>
           <button class="btn btn-sm${canStart ? ' btn-primary' : ''}"
             onclick="iniciarPartido('${m.id}','${tipo}')"
             ${canStart ? '' : 'disabled'}

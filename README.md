@@ -48,8 +48,22 @@ Crea y guarda ligas por separado: Liga de la oficina del lunes, Liga del fin de 
 ### ⏱ Estadísticas de tiempo
 Al terminar cada torneo, en la Tabla aparecen stats de cada jugador: tiempo total en cancha, promedio por partido, partido más rápido y más lento.
 
+### 👥 Dividir en 2 grupos (torneos grandes)
+Cuando son muchos jugadores, un round-robin de todos contra todos genera demasiados partidos y el torneo se alarga. Con **Dividir en 2 grupos**, cada quien juega solo dentro de su grupo (la mitad de partidos) y el torneo dura mucho menos.
+
+- La app **sugiere los 2 grupos equilibrados por ELO** (los mejores quedan repartidos) y tú puedes **mover jugadores** de un grupo a otro antes de empezar.
+- Cada grupo juega su propio round-robin; ves **ambos tableros al mismo tiempo**.
+- **Fase final:** al terminar los dos grupos, **solo los 2 primeros lugares de cada grupo** pasan, y se cruzan en semifinales:
+  - **Semifinal 1:** 1° del Grupo A  vs  2° del Grupo B
+  - **Semifinal 2:** 1° del Grupo B  vs  2° del Grupo A
+  - Los **ganadores de las semifinales juegan la Final** (definen 1° y 2° lugar).
+  - Los **perdedores de las semifinales juegan por el 3er lugar** (definen 3° y 4°).
+
 ### 📥 Exportar e imprimir
 Descarga el cuadro de resultados como imagen PNG o PDF — listo para compartir por WhatsApp o pegar en la pantalla.
+
+### ⚑ Si alguien no llega o se va
+Cada partido (pendiente o en vivo) tiene un botón **W.O.** para darlo por ganado al rival cuando alguien no se presenta o abandona — funciona también en semifinales y final. Si un jugador se retira del torneo completo, todos sus partidos pendientes se marcan W.O. a favor del rival y deja de contar para la fase final.
 
 ### 🔒 Tus datos se quedan contigo
 Todo se guarda en el navegador (localStorage). Opcional: inicia sesión con Google para respaldar en la nube y acceder desde otro dispositivo.
