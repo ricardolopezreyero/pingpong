@@ -80,7 +80,7 @@ th{background:#000;color:#fff;padding:8px;text-align:center;vertical-align:middl
 td{padding:8px;border-bottom:1px solid #eee;text-align:center;vertical-align:middle}
 tr:hover td{background:#f9f9f9}
 .cell-win{background:#14532d;color:#86efac;font-weight:bold;text-align:center}
-.cell-lose{background:#7f1d1d;color:#fca5a5;text-align:center}
+.cell-lose{background:#fff;color:#000;text-align:center}
 .cell-wo{background:#F3F4F6;color:#9CA3AF;text-align:center;font-size:11px}
 .cell-playing{background:#1d4ed8;color:#fff;text-align:center;font-size:11px}
 /* CHIPS */
@@ -613,7 +613,43 @@ function buildPartidos(players, tipo = 'individual') {
       });
     });
   });
-  return partidos;
+  return espaciarPartidos(partidos);
+}
+
+// Reordena los partidos para que un mismo jugador no juegue muchos seguidos.
+// No cambia los emparejamientos (round-robin intacto), solo el orden de la cola:
+// en cada posición elige el partido cuyos jugadores llevan más tiempo sin jugar.
+function espaciarPartidos(partidos) {
+  const jugadoresDe = p => {
+    const j1 = Array.isArray(p.jugador1) ? p.jugador1 : [p.jugador1];
+    const j2 = Array.isArray(p.jugador2) ? p.jugador2 : [p.jugador2];
+    return [...j1, ...j2];
+  };
+  const restantes = partidos.slice();
+  const orden = [];
+  const ultimoUso = {}; // jugador -> posición en la que jugó por última vez
+  let pos = 0;
+  while (restantes.length) {
+    let mejor = 0;
+    let mejorGap = -Infinity;
+    for (let i = 0; i < restantes.length; i++) {
+      const js = jugadoresDe(restantes[i]);
+      // gap = descanso mínimo entre sus jugadores (Infinity si aún no juegan)
+      let gap = Infinity;
+      for (const pl of js) {
+        const u = ultimoUso[pl];
+        const g = (u === undefined) ? Infinity : (pos - u);
+        if (g < gap) gap = g;
+      }
+      // Mayor gap = más descansados. Empate: se queda el primero (orden original).
+      if (gap > mejorGap) { mejorGap = gap; mejor = i; }
+    }
+    const elegido = restantes.splice(mejor, 1)[0];
+    orden.push(elegido);
+    jugadoresDe(elegido).forEach(pl => { ultimoUso[pl] = pos; });
+    pos++;
+  }
+  return orden;
 }
 
 // ===================== SERVE CALCULATION =====================
@@ -1796,6 +1832,30 @@ function showFixtureAnimation(nJugadores, callback) {
 }
 
 // ===================== FIXTURE GENERATION =====================
+// Regresa a la pantalla de jugadores conservando la selección (p.ej. llegó
+// alguien antes de empezar). Solo permitido si aún no se juega ningún partido.
+function volverAConfig() {
+  const enJuego = [...(torneoState.partidos || []), ...(torneoState.partidosParejas || [])]
+    .some(p => p.estado !== 'por_jugar');
+  if (enJuego) { alert('Ya hay partidos en juego o jugados; no se puede volver a editar jugadores.'); return; }
+  if (!confirm('Volver a la pantalla de Jugadores. Se borra el fixture actual (los jugadores seleccionados se conservan) y podrás regenerarlo.')) return;
+  Object.values(timers).forEach(t => { if (t.interval) clearInterval(t.interval); });
+  timers = {};
+  torneoState.partidos = [];
+  torneoState.partidosParejas = [];
+  torneoState.parejas = [];
+  torneoState.modo = 'simple';
+  torneoState.sinDobles = false;
+  torneoState.sesionRegistrada = false;
+  torneoState.jugadores.forEach(j => { delete j.grupo; });
+  torneoState.fase = 'config';
+  filtroJugador = null;
+  document.getElementById('tab3').disabled = true;
+  saveState();
+  updateFooterBtns();
+  switchTab(1);
+}
+
 function generarFixture() {
   const activos = torneoState.jugadores.filter(j => j.presente === true);
   if (activos.length < 6) { alert(`Mínimo 6 jugadores confirmados. Ahora hay ${activos.length}.`); return; }
@@ -2173,6 +2233,11 @@ function renderIndividuales() {
           📥 Descargar cuadro
         </button>
       </div>
+    </div>`;
+  } else if (torneoState.fase === 'individuales' && !partidos.some(p => p.estado !== 'por_jugar')) {
+    // Fixture generado pero aún no empieza → permitir volver a jugadores (p.ej. llegó alguien)
+    banner = `<div style="display:flex;justify-content:center;gap:8px;padding:6px 0 2px">
+      <button class="btn btn-sm" onclick="volverAConfig()" title="¿Llegó un jugador? Vuelve a la pantalla de jugadores sin perder los seleccionados y regenera el fixture">✏️ Editar jugadores</button>
     </div>`;
   }
 
@@ -2589,6 +2654,11 @@ function renderParejas() {
         style="padding:9px 18px;border:2px solid #fff;border-radius:6px;background:transparent;color:#fff;cursor:pointer;font-size:14px;font-weight:700">
         📥 Descargar cuadro
       </button>
+    </div>`;
+  } else if (torneoState.fase === 'parejas' && !partidos.some(p => p.estado !== 'por_jugar')) {
+    // Aún no empiezan las parejas → permitir volver a elegirlas
+    banner = `<div style="display:flex;justify-content:center;gap:8px;padding:6px 0 2px">
+      <button class="btn btn-sm" onclick="mostrarPreParejas()" title="Volver a elegir las parejas antes de empezar">✏️ Editar parejas</button>
     </div>`;
   }
 
@@ -3302,11 +3372,20 @@ function generarCanvasCuadro(partidos, jugadores, tipo, titulo) {
       } else {
         disp = p.juegos.filter(g => g.ganador === (isWin ? 2 : 1)).length;
       }
-      ctx.fillStyle = isWin ? '#14532d' : '#7f1d1d';
-      ctx.fillRect(cellX, ry, C_OPP, ROW_H);
-      ctx.fillStyle = isWin ? '#86efac' : '#fca5a5';
-      ctx.font = 'bold 15px system-ui, sans-serif';
-      ctx.fillText(isWin ? 'G' : String(disp), cellX + C_OPP / 2, ry + ROW_H / 2 + 5);
+      if (isWin) {
+        ctx.fillStyle = '#14532d';
+        ctx.fillRect(cellX, ry, C_OPP, ROW_H);
+        ctx.fillStyle = '#86efac';
+        ctx.font = 'bold 15px system-ui, sans-serif';
+        ctx.fillText('G', cellX + C_OPP / 2, ry + ROW_H / 2 + 5);
+      } else {
+        // Derrota: fondo blanco, número negro
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(cellX, ry, C_OPP, ROW_H);
+        ctx.fillStyle = '#000000';
+        ctx.font = '15px system-ui, sans-serif';
+        ctx.fillText(String(disp), cellX + C_OPP / 2, ry + ROW_H / 2 + 5);
+      }
     }
 
     // Estadísticas
