@@ -1205,7 +1205,14 @@ let _comodinSeleccionado = null;
 function mostrarPreParejas() {
   // Jugadores activos que jugaron el individual
   const participantes = torneoState.jugadores.filter(j => j.presente === true && !j.seFue);
-  _preParejaSeleccion = participantes.map(j => ({ nombre: j.nombre, incluido: true }));
+  // Si ya hay parejas generadas (se reabre con "Editar parejas"), respetar la
+  // selección anterior: solo vienen marcados los que están en una pareja actual.
+  const enParejas = new Set((torneoState.parejas || []).flatMap(p => p.jugadores || []));
+  const esEdicion = enParejas.size > 0 && torneoState.fase === 'parejas';
+  _preParejaSeleccion = participantes.map(j => ({
+    nombre: j.nombre,
+    incluido: esEdicion ? enParejas.has(j.nombre) : true
+  }));
   _comodinSeleccionado = null;
   renderPreParejaModal();
   document.getElementById('modalPreParejas').classList.add('open');
@@ -1294,7 +1301,10 @@ function generarParejas(jugadoresActivos, comodinNombre = null) {
   } else {
     const standings = getStandings(torneoState.partidos,
       torneoState.jugadores.filter(j => jugadoresActivos.includes(j.nombre)));
-    lista = standings.map(s => s.nombre);
+    // getStandings re-agrega a cualquiera que aparezca en un partido jugado,
+    // aunque haya sido desmarcado en la selección → filtrar SOLO a los activos.
+    lista = standings.map(s => s.nombre).filter(n => jugadoresActivos.includes(n));
+    jugadoresActivos.forEach(n => { if (!lista.includes(n)) lista.push(n); });
   }
 
   // Mover comodín al final para el trío
