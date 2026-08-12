@@ -35,6 +35,10 @@ nav button:disabled{color:#aaa;cursor:not-allowed}
 }
 .indiv-header{position:sticky;top:70px;background:#fff;z-index:40;border-bottom:1px solid #eee;padding:8px 16px}
 .indiv-body{display:grid;grid-template-columns:65% 35%;gap:0;padding:0 16px;align-items:start}
+.cards-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start}
+@media(max-width:980px){.cards-grid{grid-template-columns:1fr}}
+@keyframes slideInDone{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:none}}
+.done-new{animation:slideInDone .45s ease}
 .indiv-tabla{position:sticky;top:70px;max-height:calc(100vh - 90px);overflow-y:auto;padding:12px 0 80px 12px}
 .grupos-body{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:10px 16px;align-items:start}
 .grupo-col{min-width:0;border:1px solid #eee;border-radius:10px;padding:10px}
@@ -405,6 +409,21 @@ tr.row-highlight td{background:rgba(0,0,0,0.06)!important}
   </div>
 </div>
 
+<div id="modalWO" class="modal">
+  <div class="modal-box" style="max-width:440px">
+    <h2 style="margin-bottom:4px">⚑ Walkover (W.O.)</h2>
+    <p id="woMatchLabel" style="font-size:14px;color:#666;margin-bottom:16px"></p>
+    <div style="font-size:13px;font-weight:700;margin-bottom:8px">¿Quién pierde el partido?</div>
+    <div id="woLoserBtns" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px"></div>
+    <div style="font-size:13px;font-weight:700;margin-bottom:8px">Motivo</div>
+    <div id="woMotivoBtns" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:20px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn" onclick="closeModal('modalWO')">Cancelar</button>
+      <button class="btn btn-danger" id="btnConfirmarWO" onclick="confirmarWOModal()" disabled>Confirmar W.O.</button>
+    </div>
+  </div>
+</div>
+
 <div id="modalFinIndiv" class="modal">
   <div class="modal-box" style="max-width:400px;text-align:center">
     <div style="font-size:48px;line-height:1;margin-bottom:12px">🏆</div>
@@ -464,6 +483,20 @@ function toggleDoneOrder() {
   _doneNewestFirst = !_doneNewestFirst;
   try { localStorage.setItem('pptorneo_doneOrder', _doneNewestFirst ? 'newest' : 'oldest'); } catch {}
   renderTab(currentTab);
+}
+
+// Vista del panel derecho en Individuales/Parejas: 'tabla' (en vivo) | 'cuadro' (matriz)
+let _panelVista = (() => { try { return localStorage.getItem('pptorneo_panelVista') === 'cuadro' ? 'cuadro' : 'tabla'; } catch { return 'tabla'; } })();
+function setPanelVista(v) {
+  _panelVista = v;
+  try { localStorage.setItem('pptorneo_panelVista', v); } catch {}
+  renderTab(currentTab);
+}
+function panelSwitchHtml() {
+  return `<div style="display:flex;gap:6px;margin-bottom:10px">
+    <button class="btn btn-sm${_panelVista === 'tabla' ? ' btn-primary' : ''}" onclick="setPanelVista('tabla')">📊 Tabla en vivo</button>
+    <button class="btn btn-sm${_panelVista === 'cuadro' ? ' btn-primary' : ''}" onclick="setPanelVista('cuadro')">🔲 Cuadro</button>
+  </div>`;
 }
 
 function setFiltroJugador(nombre) {
@@ -564,6 +597,7 @@ function updateEloMatch(ganadorNombre, perdedorNombre, k = K_SINGLES) {
   ligaData.jugadores[ganadorNombre].racha = (ligaData.jugadores[ganadorNombre].racha > 0 ? ligaData.jugadores[ganadorNombre].racha : 0) + 1;
   ligaData.jugadores[perdedorNombre].racha = (ligaData.jugadores[perdedorNombre].racha < 0 ? ligaData.jugadores[perdedorNombre].racha : 0) - 1;
   saveLiga();
+  return delta; // permite guardar los deltas aplicados (p.ej. para deshacer un W.O.)
 }
 
 // ===================== ROUND ROBIN =====================
@@ -928,6 +962,7 @@ function confirmarJuego(matchId, tipo) {
     match.estado = 'jugado';
     match.ganador = mw === 1 ? match.jugador1 : match.jugador2;
     match.juegoActual = { pts1: 0, pts2: 0 };
+    window._justFinishedId = matchId; // anima su entrada en "Terminados"
 
     if (!match.eloActualizado) {
       const gNombre = Array.isArray(match.ganador) ? match.ganador.join('/') : match.ganador;
@@ -984,17 +1019,74 @@ function editarPartido(matchId, tipo) {
   renderTab(currentTab);
 }
 
-function walkoverPartido(matchId, tipo) {
+// ===================== W.O. (walkover) con modal =====================
+let _woState = { matchId: null, tipo: null, perdedorLado: null, motivo: null };
+const WO_MOTIVOS = ['Se lesionó', 'Se fue', 'No llegó', 'Otro'];
+
+function abrirWOModal(matchId, tipo) {
+  const partidos = tipo === 'individuales' ? torneoState.partidos : torneoState.partidosParejas;
+  const match = partidos.find(p => p.id === matchId);
+  if (!match) return;
+  _woState = { matchId, tipo, perdedorLado: null, motivo: null };
+  const n1 = match.pareja1Nombre || getName(match.jugador1);
+  const n2 = match.pareja2Nombre || getName(match.jugador2);
+  document.getElementById('woMatchLabel').textContent = `${n1} vs ${n2}`;
+  renderWOModal(n1, n2);
+  document.getElementById('modalWO').classList.add('open');
+}
+
+function renderWOModal(n1, n2) {
+  const btn = (lado, nombre) => {
+    const sel = _woState.perdedorLado === lado;
+    return `<button onclick="seleccionarWOPerdedor(${lado})"
+      style="padding:12px 14px;border:2px solid ${sel ? '#DC2626' : '#ddd'};border-radius:8px;text-align:left;
+             background:${sel ? '#FEF2F2' : '#fff'};cursor:pointer;font-size:14px;font-weight:${sel ? '800' : '500'};
+             color:${sel ? '#DC2626' : '#333'};transition:.15s">
+      ${sel ? '✗ ' : ''}${nombre}${sel ? ' — pierde' : ''}
+    </button>`;
+  };
+  document.getElementById('woLoserBtns').innerHTML = btn(1, n1) + btn(2, n2);
+  document.getElementById('woMotivoBtns').innerHTML = WO_MOTIVOS.map(m => {
+    const sel = _woState.motivo === m;
+    return `<button onclick="seleccionarWOMotivo('${m}')"
+      style="padding:6px 14px;border:2px solid ${sel ? '#b45309' : '#ddd'};border-radius:20px;
+             background:${sel ? '#b45309' : '#fff'};color:${sel ? '#fff' : '#555'};
+             cursor:pointer;font-size:12px;font-weight:${sel ? '700' : '400'};transition:.15s">${m}</button>`;
+  }).join('');
+  document.getElementById('btnConfirmarWO').disabled = !(_woState.perdedorLado && _woState.motivo);
+}
+
+function seleccionarWOPerdedor(lado) {
+  _woState.perdedorLado = (_woState.perdedorLado === lado) ? null : lado;
+  _refreshWOModal();
+}
+
+function seleccionarWOMotivo(m) {
+  _woState.motivo = (_woState.motivo === m) ? null : m;
+  _refreshWOModal();
+}
+
+function _refreshWOModal() {
+  const partidos = _woState.tipo === 'individuales' ? torneoState.partidos : torneoState.partidosParejas;
+  const match = partidos.find(p => p.id === _woState.matchId);
+  if (!match) return;
+  renderWOModal(match.pareja1Nombre || getName(match.jugador1), match.pareja2Nombre || getName(match.jugador2));
+}
+
+function confirmarWOModal() {
+  const { matchId, tipo, perdedorLado, motivo } = _woState;
+  if (!matchId || !perdedorLado || !motivo) return;
+  closeModal('modalWO');
+  ejecutarWalkover(matchId, tipo, perdedorLado, motivo);
+}
+
+function ejecutarWalkover(matchId, tipo, perdedorLado, motivo) {
   const partidos = tipo === 'individuales' ? torneoState.partidos : torneoState.partidosParejas;
   const match = partidos.find(p => p.id === matchId);
   if (!match) return;
 
-  const n1 = Array.isArray(match.jugador1) ? match.jugador1.join('/') : match.jugador1;
-  const n2 = Array.isArray(match.jugador2) ? match.jugador2.join('/') : match.jugador2;
-
-  const gana1 = confirm(`W.O. — ¿Quién gana?\n\nOK → gana ${n1}\nCancelar → gana ${n2}`);
-  const ganador = gana1 ? match.jugador1 : match.jugador2;
-  const perdedor = gana1 ? match.jugador2 : match.jugador1;
+  const ganador = perdedorLado === 1 ? match.jugador2 : match.jugador1;
+  const perdedor = perdedorLado === 1 ? match.jugador1 : match.jugador2;
   const gn = Array.isArray(ganador) ? ganador.join('/') : ganador;
   const ln = Array.isArray(perdedor) ? perdedor.join('/') : perdedor;
 
@@ -1008,11 +1100,76 @@ function walkoverPartido(matchId, tipo) {
   match.juegoActual = { pts1: 0, pts2: 0 };
   match.estado = 'walkover';
   match.ganador = ganador;
+  match.motivoWO = motivo;
   if (!match.eloActualizado) {
-    if (tipo === 'individuales') updateEloMatch(gn, ln, K_WO);
+    if (tipo === 'individuales') {
+      const delta = updateEloMatch(gn, ln, K_WO);
+      // Guardar los deltas exactos para poder deshacer el W.O.
+      match._woElo = { g: gn, l: ln, dw: delta.winner, dl: delta.loser };
+    }
     match.eloActualizado = true;
   }
   checkPhaseComplete(partidos, tipo);
+  saveState();
+  renderTab(currentTab);
+}
+
+// Deshacer un W.O. marcado por error: regresa el partido a "por jugar" y
+// revierte el ELO aplicado (deltas guardados). Bloqueado si etapas posteriores
+// ya dependen del resultado.
+function deshacerWalkover(matchId, tipo) {
+  const partidos = tipo === 'individuales' ? torneoState.partidos : torneoState.partidosParejas;
+  const match = partidos.find(p => p.id === matchId);
+  if (!match || match.estado !== 'walkover') return;
+
+  if (torneoState.fase === 'done') { alert('El torneo ya terminó; no se puede deshacer este W.O.'); return; }
+  if (tipo === 'individuales' && (torneoState.partidosParejas || []).length > 0) {
+    alert('Ya se generaron las parejas; no se puede deshacer un W.O. de individuales.');
+    return;
+  }
+
+  // Modo grupos: si ya hay etapas derivadas de este resultado, validar
+  if (tipo === 'individuales' && torneoState.modo === 'grupos') {
+    const playoffs = torneoState.partidos.filter(p => p.etapa);
+    const empezado = p => p.estado !== 'por_jugar';
+    if (!match.etapa && playoffs.length > 0) {
+      if (playoffs.some(empezado)) { alert('La fase final ya empezó; no se puede deshacer este W.O. de grupo.'); return; }
+      if (!confirm('Deshacer este W.O. eliminará las semifinales generadas (se regenerarán al completar los grupos). ¿Continuar?')) return;
+      torneoState.partidos = torneoState.partidos.filter(p => !p.etapa);
+    } else if (match.etapa === 'semi1' || match.etapa === 'semi2') {
+      const derivados = torneoState.partidos.filter(p => p.etapa === 'final' || p.etapa === 'tercer');
+      if (derivados.some(empezado)) { alert('La final o el 3er lugar ya empezaron; no se puede deshacer esta semifinal.'); return; }
+      if (derivados.length && !confirm('Deshacer este W.O. eliminará la Final y el 3er lugar generados. ¿Continuar?')) return;
+      torneoState.partidos = torneoState.partidos.filter(p => p.etapa !== 'final' && p.etapa !== 'tercer');
+    }
+  }
+
+  // Revertir ELO con los deltas guardados (rachas no se recalculan)
+  if (match.eloActualizado && match._woElo) {
+    const { g, l, dw, dl } = match._woElo;
+    if (ligaData.jugadores[g]) { ligaData.jugadores[g].elo -= dw; ligaData.jugadores[g].pj = Math.max(0, ligaData.jugadores[g].pj - 1); ligaData.jugadores[g].pg = Math.max(0, ligaData.jugadores[g].pg - 1); }
+    if (ligaData.jugadores[l]) { ligaData.jugadores[l].elo -= dl; ligaData.jugadores[l].pj = Math.max(0, ligaData.jugadores[l].pj - 1); }
+    saveLiga();
+  }
+
+  // Regresar el partido a por jugar
+  const m2 = (tipo === 'individuales' ? torneoState.partidos : torneoState.partidosParejas).find(p => p.id === matchId);
+  m2.estado = 'por_jugar';
+  m2.ganador = null;
+  m2.eloActualizado = false;
+  m2.mesa = null;
+  m2.duracion = 0;
+  m2.juegos = [];
+  m2.juegoActual = { pts1: 0, pts2: 0 };
+  delete m2._woElo;
+  delete m2.motivoWO;
+
+  // Reabrir la fase si este W.O. la había cerrado
+  if (tipo === 'individuales' && torneoState.fase === 'individuales_done') {
+    torneoState.fase = 'individuales';
+    document.getElementById('tab3').disabled = true;
+  }
+  updateFooterBtns();
   saveState();
   renderTab(currentTab);
 }
@@ -1130,9 +1287,11 @@ function doRetiro(nombre) {
       p.juegoActual = { pts1: 0, pts2: 0 };
       p.estado = 'walkover';
       p.ganador = enJ1 ? p.jugador2 : p.jugador1;
+      p.motivoWO = 'Se retiró del torneo';
       if (!p.eloActualizado && tipo === 'individuales') {
         const rival = enJ1 ? p.jugador2 : p.jugador1;
-        updateEloMatch(rival, nombre, K_WO);
+        const delta = updateEloMatch(rival, nombre, K_WO);
+        p._woElo = { g: rival, l: nombre, dw: delta.winner, dl: delta.loser };
         p.eloActualizado = true;
       }
     });
@@ -1152,7 +1311,7 @@ function getStandings(partidos, jugadoresList) {
   const stats = {};
   jugadoresList.forEach(j => {
     const nombre = typeof j === 'string' ? j : j.nombre;
-    stats[nombre] = { nombre, pj: 0, pg: 0, pp: 0, pts: 0, gf: 0, gc: 0 };
+    stats[nombre] = { nombre, pj: 0, pg: 0, pp: 0, pts: 0, gf: 0, gc: 0, pt: 0 };
   });
 
   // H2H map: key "A|B" → nombre del ganador
@@ -1162,8 +1321,8 @@ function getStandings(partidos, jugadoresList) {
     if (p.estado !== 'jugado' && p.estado !== 'walkover') return;
     const n1 = p.pareja1Nombre || getName(p.jugador1);
     const n2 = p.pareja2Nombre || getName(p.jugador2);
-    if (!stats[n1]) stats[n1] = { nombre: n1, pj: 0, pg: 0, pp: 0, pts: 0, gf: 0, gc: 0 };
-    if (!stats[n2]) stats[n2] = { nombre: n2, pj: 0, pg: 0, pp: 0, pts: 0, gf: 0, gc: 0 };
+    if (!stats[n1]) stats[n1] = { nombre: n1, pj: 0, pg: 0, pp: 0, pts: 0, gf: 0, gc: 0, pt: 0 };
+    if (!stats[n2]) stats[n2] = { nombre: n2, pj: 0, pg: 0, pp: 0, pts: 0, gf: 0, gc: 0, pt: 0 };
 
     const ganadorArr = Array.isArray(p.ganador) ? p.ganador : [p.ganador];
     const j1arr = Array.isArray(p.jugador1) ? p.jugador1 : [p.jugador1];
@@ -1183,6 +1342,14 @@ function getStandings(partidos, jugadoresList) {
       if (stats[n1]) { stats[n1].gf += g.pts1; stats[n1].gc += g.pts2; }
       if (stats[n2]) { stats[n2].gf += g.pts2; stats[n2].gc += g.pts1; }
     });
+  });
+
+  // Partidos totales programados por jugador/pareja (incluye por jugar y en juego)
+  partidos.forEach(p => {
+    const n1 = p.pareja1Nombre || getName(p.jugador1);
+    const n2 = p.pareja2Nombre || getName(p.jugador2);
+    if (stats[n1]) stats[n1].pt++;
+    if (stats[n2]) stats[n2].pt++;
   });
 
   return Object.values(stats).sort((a, b) => {
@@ -2279,12 +2446,19 @@ function renderIndividuales() {
     </div>
     <div class="indiv-body">
       <div id="matchCards" style="padding:12px 12px 80px 0;border-right:1px solid #eee"></div>
-      <div id="miniTabla" class="indiv-tabla"></div>
+      <div class="indiv-tabla">
+        ${panelSwitchHtml()}
+        <div id="miniTabla"></div>
+      </div>
     </div>
   `;
 
   renderMatchCards('matchCards', partidos, 'individuales');
-  renderMiniTabla('miniTabla', standings);
+  if (_panelVista === 'cuadro') {
+    renderFullMatrix('miniTabla', partidos, torneoState.jugadores.filter(j => j.presente === true && !j.seFue).map(j => j.nombre), 'individuales');
+  } else {
+    renderMiniTabla('miniTabla', standings, 'individuales');
+  }
 
   // Chips debajo de la tabla en la columna derecha
   const tablaEl = document.getElementById('miniTabla');
@@ -2324,22 +2498,26 @@ function renderMatchCards(containerId, partidos, tipo) {
 
   let html = '';
 
-  if (playing.length > 0) {
-    html += '<h3 style="margin-bottom:8px">En juego</h3>';
+  if (playing.length > 0 || pending.length > 0) {
+    // Cuadrícula única: en juego + siguientes (rellena hasta 4 visibles por defecto)
+    const slotsLibres = Math.max(0, 4 - playing.length);
+    const mostrar = _showAllPending ? pending : pending.slice(0, Math.max(slotsLibres, playing.length === 0 ? 4 : 0));
+    const titulo = [
+      playing.length > 0 ? `En juego (${playing.length})` : '',
+      pending.length > 0 ? `Siguientes <span style="font-size:12px;color:#999;font-weight:normal">(${pending.length} pendientes)</span>` : ''
+    ].filter(Boolean).join(' · ');
+    html += `<h3 style="margin-bottom:8px">${titulo}</h3>`;
+    html += '<div class="cards-grid">';
     playing.forEach(m => { html += renderPlayingCard(m, tipo, matchNum(m, partidos)); });
-  }
-
-  if (pending.length > 0) {
-    const mostrar = _showAllPending ? pending : pending.slice(0, 2);
-    html += `<h3 style="margin-top:16px;margin-bottom:8px">Siguientes <span style="font-size:12px;color:#999;font-weight:normal">(${pending.length} pendientes)</span></h3>`;
     mostrar.forEach(m => { html += renderPendingCard(m, tipo, matchNum(m, partidos)); });
-    if (!_showAllPending && pending.length > 2) {
-      html += `<button class="btn btn-sm" style="margin-top:6px;width:100%" onclick="mostrarTodosPendientes()">
-        Ver ${pending.length - 2} partidos más ▾
+    html += '</div>';
+    if (!_showAllPending && pending.length > mostrar.length) {
+      html += `<button class="btn btn-sm" style="margin-top:8px;width:100%" onclick="mostrarTodosPendientes()">
+        Ver ${pending.length - mostrar.length} partidos más ▾
       </button>`;
-    } else if (_showAllPending && pending.length > 2) {
-      html += `<button class="btn btn-sm" style="margin-top:6px;width:100%;color:#999" onclick="ocultarPendientes()">
-        Mostrar solo los siguientes 2 ▴
+    } else if (_showAllPending && pending.length > 4) {
+      html += `<button class="btn btn-sm" style="margin-top:8px;width:100%;color:#999" onclick="ocultarPendientes()">
+        Mostrar menos ▴
       </button>`;
     }
   }
@@ -2356,6 +2534,7 @@ function renderMatchCards(containerId, partidos, tipo) {
   }
 
   el.innerHTML = html;
+  window._justFinishedId = null; // la animación de "recién terminado" solo corre una vez
 
   // Restart timers for playing matches (not paused)
   playing.forEach(m => {
@@ -2413,7 +2592,7 @@ function renderPlayingCard(m, tipo, num) {
             ? `<button onclick="reanudarPartido('${m.id}','${tipo}')" style="padding:3px 10px;border:1px solid #F59E0B;border-radius:5px;background:transparent;color:#F59E0B;cursor:pointer;font-size:12px;font-weight:700">▶ Reanudar</button>`
             : `<button onclick="pausarPartido('${m.id}','${tipo}')" style="padding:3px 10px;border:1px solid #444;border-radius:5px;background:transparent;color:#888;cursor:pointer;font-size:12px">⏸</button>`
           }
-          <button onclick="walkoverPartido('${m.id}','${tipo}')" title="Terminar como W.O. (un jugador abandona)" style="padding:3px 10px;border:1px solid #b45309;border-radius:5px;background:transparent;color:#d97706;cursor:pointer;font-size:12px;font-weight:700">⚑ W.O.</button>
+          <button onclick="abrirWOModal('${m.id}','${tipo}')" title="Terminar como W.O. (un jugador abandona)" style="padding:3px 10px;border:1px solid #b45309;border-radius:5px;background:transparent;color:#d97706;cursor:pointer;font-size:12px;font-weight:700">⚑ W.O.</button>
         </div>
       </div>
 
@@ -2433,31 +2612,31 @@ function renderPlayingCard(m, tipo, num) {
         </div>
       </div>
 
-      <!-- BOTONES + MARCADOR -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;${isPaused ? 'opacity:.45;pointer-events:none' : ''}">
-        <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+      <!-- BOTONES + MARCADOR (compacto: caben 4 tarjetas en cuadrícula) -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;${isPaused ? 'opacity:.45;pointer-events:none' : ''}">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
           <button onclick="addPt('${m.id}',1,'${tipo}')"
-            style="width:100%;height:44px;font-size:28px;font-weight:900;background:#fff;color:#000;border:none;border-radius:8px;cursor:pointer;line-height:1">+</button>
+            style="width:100%;height:32px;font-size:22px;font-weight:900;background:#fff;color:#000;border:none;border-radius:8px;cursor:pointer;line-height:1">+</button>
           <input type="number" min="0" max="99" value="${pts1}"
             class="score-num-input"
-            style="font-size:72px;line-height:1;height:88px;color:#fff"
+            style="font-size:42px;line-height:1;height:52px;color:#fff"
             oninput="setScoreFromInput('${m.id}',1,'${tipo}',this)"
             onclick="this.select()"
             inputmode="numeric">
           <button onclick="subPt('${m.id}',1,'${tipo}')"
-            style="width:100%;height:30px;font-size:20px;font-weight:900;background:transparent;color:#555;border:2px solid #333;border-radius:8px;cursor:pointer;line-height:1">−</button>
+            style="width:100%;height:24px;font-size:16px;font-weight:900;background:transparent;color:#555;border:2px solid #333;border-radius:8px;cursor:pointer;line-height:1">−</button>
         </div>
-        <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
           <button onclick="addPt('${m.id}',2,'${tipo}')"
-            style="width:100%;height:44px;font-size:28px;font-weight:900;background:#fff;color:#000;border:none;border-radius:8px;cursor:pointer;line-height:1">+</button>
+            style="width:100%;height:32px;font-size:22px;font-weight:900;background:#fff;color:#000;border:none;border-radius:8px;cursor:pointer;line-height:1">+</button>
           <input type="number" min="0" max="99" value="${pts2}"
             class="score-num-input"
-            style="font-size:72px;line-height:1;height:88px;color:#fff"
+            style="font-size:42px;line-height:1;height:52px;color:#fff"
             oninput="setScoreFromInput('${m.id}',2,'${tipo}',this)"
             onclick="this.select()"
             inputmode="numeric">
           <button onclick="subPt('${m.id}',2,'${tipo}')"
-            style="width:100%;height:30px;font-size:20px;font-weight:900;background:transparent;color:#555;border:2px solid #333;border-radius:8px;cursor:pointer;line-height:1">−</button>
+            style="width:100%;height:24px;font-size:16px;font-weight:900;background:transparent;color:#555;border:2px solid #333;border-radius:8px;cursor:pointer;line-height:1">−</button>
         </div>
       </div>
 
@@ -2503,7 +2682,7 @@ function renderPendingCard(m, tipo, num) {
         ${avatarEl(n2, p2.foto)}
         <strong>${n2}</strong>
         <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
-          <button class="btn btn-sm" onclick="walkoverPartido('${m.id}','${tipo}')"
+          <button class="btn btn-sm" onclick="abrirWOModal('${m.id}','${tipo}')"
             title="Marcar W.O. (un jugador no se presenta)" style="color:#b45309">W.O.</button>
           <button class="btn btn-sm${canStart ? ' btn-primary' : ''}"
             onclick="iniciarPartido('${m.id}','${tipo}')"
@@ -2522,8 +2701,13 @@ function renderDoneCard(m, tipo, num) {
   const n2 = m.pareja2Nombre || getName(m.jugador2);
 
   if (m.estado === 'walkover') {
-    const gn = m.pareja1Nombre ? (Array.isArray(m.ganador) ? m.ganador.join('/') : m.ganador) : getName(m.ganador);
-    return `<div class="card-wo"><span style="color:#ccc;margin-right:8px;font-weight:900">${num||''}</span>${n1} vs ${n2} — <strong>${gn}</strong> ganó (W.O.)</div>`;
+    const _g1 = Array.isArray(m.jugador1) ? m.jugador1[0] : m.jugador1;
+    const _ga = Array.isArray(m.ganador) ? m.ganador[0] : m.ganador;
+    const gn = m.pareja1Nombre ? (_ga === _g1 ? m.pareja1Nombre : m.pareja2Nombre) : getName(m.ganador);
+    return `<div class="card-wo" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <span><span style="color:#ccc;margin-right:8px;font-weight:900">${num||''}</span>${n1} vs ${n2} — <strong>${gn}</strong> ganó (W.O.${m.motivoWO ? ' · ' + m.motivoWO : ''})</span>
+      <button class="btn btn-sm" onclick="deshacerWalkover('${m.id}','${tipo}')" title="Regresar este partido a por jugar y revertir el ELO del W.O.">↺ Deshacer</button>
+    </div>`;
   }
 
   const gn = m.pareja1Nombre ? (Array.isArray(m.ganador) ? m.pareja1Nombre : (m.ganador === m.jugador1 || (Array.isArray(m.jugador1) && m.jugador1.join('/') === m.ganador.join('/')) ? m.pareja1Nombre : m.pareja2Nombre)) : getName(m.ganador);
@@ -2534,7 +2718,7 @@ function renderDoneCard(m, tipo, num) {
     : '';
 
   return `
-    <div class="card-done">
+    <div class="card-done${window._justFinishedId === m.id ? ' done-new' : ''}">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
         <span><span style="font-size:13px;font-weight:900;color:#ccc;margin-right:8px">${num||''}</span>${n1} <strong style="color:#22C55E">vs</strong> ${n2}</span>
         <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -2548,7 +2732,7 @@ function renderDoneCard(m, tipo, num) {
   `;
 }
 
-function renderMiniTabla(containerId, standings) {
+function renderMiniTabla(containerId, standings, tipo = 'individuales') {
   const el = document.getElementById(containerId);
   if (!el) return;
 
@@ -2571,12 +2755,16 @@ function renderMiniTabla(containerId, standings) {
   ` : '';
 
   el.innerHTML = `
-    <h3 style="margin-bottom:8px;font-size:15px">Tabla en vivo</h3>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <h3 style="margin:0;font-size:15px">Tabla en vivo</h3>
+      <button class="btn btn-sm" onclick="descargarTablaEnVivo('${tipo}')" title="Descargar la tabla en vivo (PNG)">📥 Descargar</button>
+    </div>
     ${podioHtml}
     <table style="font-size:12px">
       <thead><tr>
         <th>#</th>
         <th>Jugador</th>
+        <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Jugados / Partidos Totales">PJ</span></th>
         <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Ganados">PG</span></th>
         <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Perdidos">PP</span></th>
         <th><span class="elo-tip" style="color:#fff" data-tip="Puntos de torneo (2 por victoria)">Pts</span></th>
@@ -2594,6 +2782,7 @@ function renderMiniTabla(containerId, standings) {
                 <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px">${s.nombre}</span>
               </div>
             </td>
+            <td style="text-align:center;color:#666;white-space:nowrap">${s.pj}<span style="color:#bbb">/${s.pt}</span></td>
             <td style="text-align:center">${s.pg}</td>
             <td style="text-align:center;color:#999">${s.pp}</td>
             <td style="text-align:center"><strong style="color:${i===0?'#22C55E':'inherit'}">${s.pts}</strong></td>
@@ -2603,6 +2792,18 @@ function renderMiniTabla(containerId, standings) {
       </tbody>
     </table>
   `;
+}
+
+// Descarga la tabla en vivo (funciona a media sesión, no requiere torneo terminado)
+function descargarTablaEnVivo(tipo) {
+  const partidos = tipo === 'parejas' ? torneoState.partidosParejas : torneoState.partidos;
+  if (!partidos || partidos.length === 0) { alert('Todavía no hay partidos.'); return; }
+  const canvas = generarCanvasExport(tipo);
+  const date = (() => { const n = new Date(); return n.toISOString().split('T')[0].replace(/-/g,'_') + '_' + String(n.getHours()).padStart(2,'0') + String(n.getMinutes()).padStart(2,'0'); })();
+  const link = document.createElement('a');
+  link.download = `PPTORNEO_TABLA_${tipo === 'parejas' ? 'PAREJAS' : 'INDIVIDUALES'}_${date}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
 }
 
 // ===================== TAB 3: PAREJAS =====================
@@ -2684,12 +2885,19 @@ function renderParejas() {
     </div>
     <div class="indiv-body">
       <div id="parejasMatchCards" style="padding:12px 12px 80px 0;border-right:1px solid #eee"></div>
-      <div id="parejasTabla" class="indiv-tabla"></div>
+      <div class="indiv-tabla">
+        ${panelSwitchHtml()}
+        <div id="parejasTabla"></div>
+      </div>
     </div>
   `;
 
   renderMatchCards('parejasMatchCards', partidos, 'parejas');
-  renderMiniTabla('parejasTabla', standings);
+  if (_panelVista === 'cuadro') {
+    renderFullMatrix('parejasTabla', partidos, parejas.map(p => p.nombre), 'parejas');
+  } else {
+    renderMiniTabla('parejasTabla', standings, 'parejas');
+  }
 
   // Chips debajo de la tabla en columna derecha
   const tablaEl = document.getElementById('parejasTabla');
@@ -2815,6 +3023,7 @@ function renderFullMatrix(containerId, partidos, jugadores, tipo, titulo) {
             <th>#</th><th>Jugador</th>
             ${ordered.map((_, i) => `<th>${i+1}</th>`).join('')}
             <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Jugados">PJ</span></th>
+            <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Totales programados">PT</span></th>
             <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Ganados">PG</span></th>
             <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Perdidos">PP</span></th>
             <th><span class="elo-tip" style="color:#fff" data-tip="Puntos de torneo (2 por victoria)">Pts</span></th>
@@ -2836,7 +3045,10 @@ function renderFullMatrix(containerId, partidos, jugadores, tipo, titulo) {
               if (p.estado === 'por_jugar') return '<td></td>';
               if (p.estado === 'walkover') return '<td class="cell-wo">W.O.</td>';
 
-              const gn = p.pareja1Nombre ? (p.flipped ? p.pareja2Nombre : p.pareja1Nombre) : getName(p.ganador);
+              // Ganador real desde p.ganador (en parejas es array; comparar vs jugador1)
+              const _g1 = Array.isArray(p.jugador1) ? p.jugador1[0] : p.jugador1;
+              const _ga = Array.isArray(p.ganador) ? p.ganador[0] : p.ganador;
+              const gn = p.pareja1Nombre ? (_ga === _g1 ? p.pareja1Nombre : p.pareja2Nombre) : getName(p.ganador);
               const isWin = gn === s.nombre;
               const scores = p.juegos.map(g => p.flipped ? `${g.pts2}-${g.pts1}` : `${g.pts1}-${g.pts2}`).join(', ');
               // Loser score: sum of their points across all games
@@ -2865,7 +3077,7 @@ function renderFullMatrix(containerId, partidos, jugadores, tipo, titulo) {
                 <span style="text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px">${s.nombre}</span>
               </td>
               ${cells}
-              <td>${s.pj}</td><td>${s.pg}</td><td>${s.pp}</td>
+              <td>${s.pj}</td><td style="color:#999">${s.pt}</td><td>${s.pg}</td><td>${s.pp}</td>
               <td><strong>${s.pts}</strong></td>
               <td>${s.gf - s.gc >= 0 ? '+' : ''}${s.gf - s.gc}</td>
               <td class="elo-badge elo-tip" data-tip="Rating histórico acumulado entre sesiones.">${getElo(s.nombre)}</td>
@@ -3184,7 +3396,7 @@ function generarCanvasExport(tipo) {
     const vals = [
       ri + 1,
       s.nombre,
-      s.pj,
+      `${s.pj}/${s.pt}`, // jugados / totales
       s.pg,
       s.pp,
       s.gf,
@@ -3276,9 +3488,9 @@ function generarCanvasCuadro(partidos, jugadores, tipo, titulo) {
   const PAD = 40;
   const HEADER_H = 124;
   const C_NUM = 44, C_NAME = 210, C_OPP = 42, C_STAT = 52, C_ELO = 62;
-  const STATS = ['PJ', 'PG', 'PP', 'Pts', 'Dif', 'ELO'];
-  const STAT_W = [C_STAT, C_STAT, C_STAT, C_STAT, C_STAT, C_ELO];
-  const gridW = C_NUM + C_NAME + n * C_OPP + C_STAT * 5 + C_ELO;
+  const STATS = ['PJ', 'PT', 'PG', 'PP', 'Pts', 'Dif', 'ELO'];
+  const STAT_W = [C_STAT, C_STAT, C_STAT, C_STAT, C_STAT, C_STAT, C_ELO];
+  const gridW = C_NUM + C_NAME + n * C_OPP + C_STAT * 6 + C_ELO;
   const W = Math.max(880, PAD * 2 + gridW);
   const HEAD_ROW_H = 40, ROW_H = 42;
   const tableTop = HEADER_H + 28;
@@ -3372,8 +3584,10 @@ function generarCanvasCuadro(partidos, jugadores, tipo, titulo) {
       if (p.estado === 'por_jugar') continue;
       if (p.estado === 'jugando') { ctx.fillStyle = '#1d4ed8'; ctx.fillRect(cellX, ry, C_OPP, ROW_H); ctx.fillStyle = '#fff'; ctx.font = '12px system-ui, sans-serif'; ctx.fillText('▶', cellX + C_OPP / 2, ry + ROW_H / 2 + 4); continue; }
       if (p.estado === 'walkover') { ctx.fillStyle = '#F3F4F6'; ctx.fillRect(cellX, ry, C_OPP, ROW_H); ctx.fillStyle = '#9CA3AF'; ctx.font = 'bold 10px system-ui, sans-serif'; ctx.fillText('W.O.', cellX + C_OPP / 2, ry + ROW_H / 2 + 4); continue; }
-      // Jugado
-      const gn = p.pareja1Nombre ? (p.flipped ? p.pareja2Nombre : p.pareja1Nombre) : getName(p.ganador);
+      // Jugado — ganador real desde p.ganador (en parejas es array; comparar vs jugador1)
+      const _g1 = Array.isArray(p.jugador1) ? p.jugador1[0] : p.jugador1;
+      const _ga = Array.isArray(p.ganador) ? p.ganador[0] : p.ganador;
+      const gn = p.pareja1Nombre ? (_ga === _g1 ? p.pareja1Nombre : p.pareja2Nombre) : getName(p.ganador);
       const isWin = gn === s.nombre;
       let disp;
       if (torneoState.formato === 1) {
@@ -3398,13 +3612,13 @@ function generarCanvasCuadro(partidos, jugadores, tipo, titulo) {
       }
     }
 
-    // Estadísticas
+    // Estadísticas: PJ, PT, PG, PP, Pts (bold), Dif, ELO (gris)
     const dif = s.gf - s.gc;
-    const statVals = [s.pj, s.pg, s.pp, s.pts, (dif >= 0 ? '+' : '') + dif, getElo(s.nombre)];
+    const statVals = [s.pj, s.pt, s.pg, s.pp, s.pts, (dif >= 0 ? '+' : '') + dif, getElo(s.nombre)];
     let stx = statX0;
     statVals.forEach((v, i) => {
-      ctx.fillStyle = i === 5 ? '#BBBBBB' : (i === 3 ? '#0A0A0A' : '#333');
-      ctx.font = (i === 3 ? 'bold ' : '') + (i === 5 ? '12px' : '14px') + ' system-ui, sans-serif';
+      ctx.fillStyle = i === 6 ? '#BBBBBB' : (i === 1 ? '#999999' : (i === 4 ? '#0A0A0A' : '#333'));
+      ctx.font = (i === 4 ? 'bold ' : '') + (i === 6 ? '12px' : '14px') + ' system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(String(v), stx + STAT_W[i] / 2, ry + ROW_H / 2 + 5);
       stx += STAT_W[i];
