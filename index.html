@@ -409,6 +409,73 @@ tr.row-highlight td{background:rgba(0,0,0,0.06)!important}
   </div>
 </div>
 
+<div id="modalReglas" class="modal">
+  <div class="modal-box" style="max-width:640px;max-height:86vh;display:flex;flex-direction:column;padding:0;overflow:hidden">
+    <div style="padding:20px 24px 14px;border-bottom:1px solid #eee;flex-shrink:0">
+      <h2 style="margin:0">📜 Reglas de la Liga</h2>
+      <p style="font-size:12px;color:#999;margin:4px 0 0">Todas las formas de puntuar, transparentes y a la mano.</p>
+    </div>
+    <div style="overflow-y:auto;padding:18px 24px;flex:1;font-size:14px;line-height:1.55">
+
+      <h3 style="margin:0 0 8px;font-size:15px">🏓 1 · Individuales — formato</h3>
+      <ul style="margin:0 0 16px;padding-left:20px;color:#333">
+        <li><strong>Todos contra todos</strong> (round-robin). Con muchos jugadores se puede <strong>dividir en 2 grupos</strong> para que cada quien juegue la mitad de partidos.</li>
+        <li>Juegos a <strong>11 puntos con ventaja mínima de 2</strong> (en 10–10 se sigue hasta sacar 2 de diferencia).</li>
+        <li>Formato configurable por sesión: <strong>1 juego</strong>, <strong>mejor de 3</strong> o <strong>mejor de 5</strong>.</li>
+        <li>El orden de los partidos se acomoda para que nadie juegue muchos seguidos.</li>
+      </ul>
+
+      <h3 style="margin:0 0 8px;font-size:15px">🧮 2 · Puntuación de la tabla (aplica igual en individuales y parejas)</h3>
+      <ul style="margin:0 0 10px;padding-left:20px;color:#333">
+        <li><strong>PJ / PT</strong> — partidos jugados / partidos totales programados.</li>
+        <li><strong>PG</strong> — partidos ganados. <strong>PP</strong> — partidos perdidos.</li>
+        <li><strong>Pts</strong> — <strong>1 punto por partido ganado</strong>. La derrota no da puntos.</li>
+        <li><strong>Dif</strong> — puntos que anotaste <strong>solo en los partidos que perdiste</strong> (los que ganaste no cuentan). Ejemplo: perdiste 11–5 y 11–13… anotaste 5 + 13 = <strong>18</strong>. Derrotas más cerradas = número más alto.</li>
+      </ul>
+      <div style="background:#f5f5f5;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px">
+        <strong>Orden de la tabla (desempates):</strong><br>
+        1️⃣ Más <strong>Pts</strong> (victorias) &nbsp;→&nbsp; 2️⃣ Más <strong>Dif</strong> (puntos en tus derrotas) &nbsp;→&nbsp; 3️⃣ <strong>Partido directo</strong> entre los empatados &nbsp;→&nbsp; 4️⃣ Puntos a favor totales.
+      </div>
+
+      <h3 style="margin:0 0 8px;font-size:15px">⚑ 3 · Walkover (W.O.)</h3>
+      <ul style="margin:0 0 16px;padding-left:20px;color:#333">
+        <li>Si alguien <strong>no llega, se lesiona o abandona</strong>, el partido se marca W.O. eligiendo quién pierde y el motivo.</li>
+        <li>El W.O. cuenta como partido jugado: el ganador suma <strong>1 punto</strong>; el que pierde <strong>no anota puntos</strong> para Dif.</li>
+        <li>Un W.O. marcado por error se puede <strong>deshacer</strong> (mientras no dependan de él etapas posteriores).</li>
+        <li><strong>Retiro del torneo:</strong> todos los partidos pendientes de ese jugador quedan W.O. a favor del rival.</li>
+      </ul>
+
+      <h3 style="margin:0 0 8px;font-size:15px">👥 4 · Modo 2 grupos (torneos grandes)</h3>
+      <ul style="margin:0 0 16px;padding-left:20px;color:#333">
+        <li>Los grupos se sugieren <strong>equilibrados por ELO</strong> (los mejores separados) y se pueden ajustar a mano antes de empezar.</li>
+        <li>Round-robin dentro de cada grupo con la puntuación de arriba.</li>
+        <li>Clasifican <strong>los 2 primeros de cada grupo</strong>, cruzados: <strong>Semifinal 1:</strong> 1° del grupo A vs 2° del grupo B · <strong>Semifinal 2:</strong> 1° del grupo B vs 2° del grupo A.</li>
+        <li>Ganadores de semis → <strong>Final</strong> (define 1° y 2°). Perdedores → <strong>partido por el 3er lugar</strong> (define 3° y 4°).</li>
+      </ul>
+
+      <h3 style="margin:0 0 8px;font-size:15px">🤝 5 · Parejas (dobles)</h3>
+      <ul style="margin:0 0 16px;padding-left:20px;color:#333">
+        <li>Se arman al terminar individuales, <strong>por ranking</strong>: el 1° con el último, el 2° con el penúltimo, y así — parejas parejas.</li>
+        <li>Antes de generar se confirma quién juega (los que se van se desmarcan) y se pueden <strong>editar</strong> mientras no empiece el primer partido.</li>
+        <li>Con número <strong>impar</strong> se elige un <strong>comodín</strong>, que forma un <strong>trío</strong> con la pareja del centro del ranking.</li>
+        <li>Round-robin entre parejas con la <strong>misma puntuación y desempates</strong> que individuales.</li>
+      </ul>
+
+      <h3 style="margin:0 0 8px;font-size:15px">⭐ 6 · ELO (ranking histórico)</h3>
+      <ul style="margin:0 0 6px;padding-left:20px;color:#333">
+        <li>Todos empiezan en <strong>1000</strong>. Se acumula <strong>entre sesiones y entre ligas</strong> — con el tiempo refleja quién ha sido mejor.</li>
+        <li>Ganar a alguien con <strong>más ELO que tú</strong> te da más puntos; perder contra alguien con menos, te quita más.</li>
+        <li>Impacto por partido: <strong>individual K=32</strong> · <strong>W.O. K=16</strong> (la mitad) · <strong>parejas: ±12 fijos</strong> por jugador.</li>
+        <li>El ELO sirve para sembrar grupos y para el ranking histórico; <strong>el campeón de la sesión lo define la tabla</strong>, no el ELO.</li>
+      </ul>
+
+    </div>
+    <div style="padding:12px 24px 16px;border-top:1px solid #eee;flex-shrink:0">
+      <button class="btn" onclick="closeModal('modalReglas')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <div id="modalWO" class="modal">
   <div class="modal-box" style="max-width:440px">
     <h2 style="margin-bottom:4px">⚑ Walkover (W.O.)</h2>
@@ -1307,11 +1374,17 @@ function doRetiro(nombre) {
 }
 
 // ===================== STANDINGS =====================
+// Sistema de puntuación (individuales y parejas):
+//   Pts  = 1 punto por partido ganado.
+//   pdif = puntos que anotaste SOLO en los partidos que perdiste (los ganados
+//          no cuentan). Es el primer desempate: más puntos = derrotas más cerradas.
+//   Orden de la tabla: Pts → pdif → partido directo (H2H) → puntos a favor.
 function getStandings(partidos, jugadoresList) {
   const stats = {};
+  const nuevo = nombre => ({ nombre, pj: 0, pg: 0, pp: 0, pts: 0, gf: 0, gc: 0, pt: 0, pdif: 0 });
   jugadoresList.forEach(j => {
     const nombre = typeof j === 'string' ? j : j.nombre;
-    stats[nombre] = { nombre, pj: 0, pg: 0, pp: 0, pts: 0, gf: 0, gc: 0, pt: 0 };
+    stats[nombre] = nuevo(nombre);
   });
 
   // H2H map: key "A|B" → nombre del ganador
@@ -1321,8 +1394,8 @@ function getStandings(partidos, jugadoresList) {
     if (p.estado !== 'jugado' && p.estado !== 'walkover') return;
     const n1 = p.pareja1Nombre || getName(p.jugador1);
     const n2 = p.pareja2Nombre || getName(p.jugador2);
-    if (!stats[n1]) stats[n1] = { nombre: n1, pj: 0, pg: 0, pp: 0, pts: 0, gf: 0, gc: 0, pt: 0 };
-    if (!stats[n2]) stats[n2] = { nombre: n2, pj: 0, pg: 0, pp: 0, pts: 0, gf: 0, gc: 0, pt: 0 };
+    if (!stats[n1]) stats[n1] = nuevo(n1);
+    if (!stats[n2]) stats[n2] = nuevo(n2);
 
     const ganadorArr = Array.isArray(p.ganador) ? p.ganador : [p.ganador];
     const j1arr = Array.isArray(p.jugador1) ? p.jugador1 : [p.jugador1];
@@ -1335,13 +1408,18 @@ function getStandings(partidos, jugadoresList) {
     h2h[`${n2}|${n1}`] = gNombre;
 
     stats[n1].pj++; stats[n2].pj++;
-    if (gNombre === n1) { stats[n1].pg++; stats[n1].pts += 2; stats[n2].pp++; }
-    else { stats[n2].pg++; stats[n2].pts += 2; stats[n1].pp++; }
+    if (gNombre === n1) { stats[n1].pg++; stats[n1].pts += 1; stats[n2].pp++; }
+    else { stats[n2].pg++; stats[n2].pts += 1; stats[n1].pp++; }
 
+    let pts1Total = 0, pts2Total = 0;
     p.juegos.forEach(g => {
+      pts1Total += g.pts1; pts2Total += g.pts2;
       if (stats[n1]) { stats[n1].gf += g.pts1; stats[n1].gc += g.pts2; }
       if (stats[n2]) { stats[n2].gf += g.pts2; stats[n2].gc += g.pts1; }
     });
+    // pdif: el PERDEDOR acumula los puntos que anotó en este partido
+    if (gNombre === n1) stats[n2].pdif += pts2Total;
+    else stats[n1].pdif += pts1Total;
   });
 
   // Partidos totales programados por jugador/pareja (incluye por jugar y en juego)
@@ -1354,14 +1432,16 @@ function getStandings(partidos, jugadoresList) {
 
   return Object.values(stats).sort((a, b) => {
     if (b.pts !== a.pts) return b.pts - a.pts;
-    // Desempate por partido directo (H2H)
+    // 1er desempate: puntos anotados en partidos perdidos (más = mejor)
+    if (b.pdif !== a.pdif) return b.pdif - a.pdif;
+    // 2do desempate: partido directo (H2H)
     const key = `${a.nombre}|${b.nombre}`;
     if (h2h[key]) {
       if (h2h[key] === a.nombre) return -1;
       if (h2h[key] === b.nombre) return 1;
     }
-    // Fallback: diferencia de puntos
-    return (b.gf - b.gc) - (a.gf - a.gc);
+    // Fallback: puntos a favor totales
+    return b.gf - a.gf;
   });
 }
 
@@ -2761,15 +2841,22 @@ function renderMiniTabla(containerId, standings, tipo = 'individuales') {
     </div>
     ${podioHtml}
     <table style="font-size:12px">
-      <thead><tr>
-        <th>#</th>
-        <th>Jugador</th>
-        <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Jugados / Partidos Totales">PJ</span></th>
-        <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Ganados">PG</span></th>
-        <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Perdidos">PP</span></th>
-        <th><span class="elo-tip" style="color:#fff" data-tip="Puntos de torneo (2 por victoria)">Pts</span></th>
-        <th><span class="elo-tip" style="color:#fff" data-tip="Puntos a Favor anotados en total">PF</span></th>
-      </tr></thead>
+      <thead>
+        <tr>
+          <th colspan="2" style="background:#000;border-bottom:1px solid #222"></th>
+          <th colspan="3" style="background:#1c1c1c;border-bottom:1px solid #222;border-left:3px solid #555;font-size:9px;letter-spacing:.5px;color:#9CA3AF">🏓 PARTIDOS</th>
+          <th colspan="2" style="background:#1c1c1c;border-bottom:1px solid #222;border-left:3px solid #555;font-size:9px;letter-spacing:.5px;color:#FACC15">🎯 PUNTOS</th>
+        </tr>
+        <tr>
+          <th>#</th>
+          <th>Jugador</th>
+          <th style="border-left:3px solid #555"><span class="elo-tip" style="color:#fff" data-tip="Partidos Jugados / Partidos Totales">PJ</span></th>
+          <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Ganados">PG</span></th>
+          <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Perdidos">PP</span></th>
+          <th style="border-left:3px solid #555"><span class="elo-tip" style="color:#fff" data-tip="Puntos de torneo (1 por victoria)">Pts</span></th>
+          <th><span class="elo-tip" style="color:#fff" data-tip="Puntos a Favor anotados en total">PF</span></th>
+        </tr>
+      </thead>
       <tbody>
         ${standings.map((s, i) => `
           <tr style="${i === 0 ? 'background:#fffbeb;font-weight:bold' : i === 1 ? 'background:#f9f9f9' : ''}">
@@ -2782,11 +2869,11 @@ function renderMiniTabla(containerId, standings, tipo = 'individuales') {
                 <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px">${s.nombre}</span>
               </div>
             </td>
-            <td style="text-align:center;color:#666;white-space:nowrap">${s.pj}<span style="color:#bbb">/${s.pt}</span></td>
-            <td style="text-align:center">${s.pg}</td>
-            <td style="text-align:center;color:#999">${s.pp}</td>
-            <td style="text-align:center"><strong style="color:${i===0?'#22C55E':'inherit'}">${s.pts}</strong></td>
-            <td style="text-align:center;color:#666">${s.gf}</td>
+            <td style="text-align:center;color:#666;white-space:nowrap;border-left:3px solid #e2e2e2;background:rgba(0,0,0,0.02)">${s.pj}<span style="color:#bbb">/${s.pt}</span></td>
+            <td style="text-align:center;background:rgba(0,0,0,0.02)">${s.pg}</td>
+            <td style="text-align:center;color:#999;background:rgba(0,0,0,0.02)">${s.pp}</td>
+            <td style="text-align:center;border-left:3px solid #e2e2e2;background:rgba(250,204,21,0.07)"><strong style="color:${i===0?'#22C55E':'inherit'}">${s.pts}</strong></td>
+            <td style="text-align:center;color:#666;background:rgba(250,204,21,0.07)">${s.gf}</td>
           </tr>
         `).join('')}
       </tbody>
@@ -2925,6 +3012,7 @@ function renderTabla() {
       <button class="btn btn-primary" id="tabTabIndiv" onclick="showTablaSection('indiv')">Individuales</button>
       <button class="btn" id="tabTabParejas" onclick="showTablaSection('parejas')">Parejas</button>
       <button class="btn" onclick="copiarTabla()">📋 Copiar tabla</button>
+      <button class="btn" onclick="openReglasModal()">📜 Reglas</button>
     </div>
     <div id="tablaIndiv"></div>
     <div id="tablaParejas" style="display:none"></div>
@@ -3020,15 +3108,21 @@ function renderFullMatrix(containerId, partidos, jugadores, tipo, titulo) {
       <table>
         <thead>
           <tr>
+            <th colspan="${2 + ordered.length}" style="background:#000;border-bottom:1px solid #222"></th>
+            <th colspan="4" style="background:#1c1c1c;border-bottom:1px solid #222;border-left:3px solid #555;font-size:10px;letter-spacing:1px;color:#9CA3AF">🏓 PARTIDOS</th>
+            <th colspan="2" style="background:#1c1c1c;border-bottom:1px solid #222;border-left:3px solid #555;font-size:10px;letter-spacing:1px;color:#FACC15">🎯 PUNTOS</th>
+            <th style="background:#000;border-bottom:1px solid #222;border-left:3px solid #555"></th>
+          </tr>
+          <tr class="matrix-cols">
             <th>#</th><th>Jugador</th>
             ${ordered.map((_, i) => `<th>${i+1}</th>`).join('')}
-            <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Jugados">PJ</span></th>
+            <th style="border-left:3px solid #555"><span class="elo-tip" style="color:#fff" data-tip="Partidos Jugados">PJ</span></th>
             <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Totales programados">PT</span></th>
             <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Ganados">PG</span></th>
             <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Perdidos">PP</span></th>
-            <th><span class="elo-tip" style="color:#fff" data-tip="Puntos de torneo (2 por victoria)">Pts</span></th>
-            <th><span class="elo-tip" style="color:#fff" data-tip="Diferencia de puntos anotados vs recibidos">Dif</span></th>
-            <th><span class="elo-tip" style="color:#fff" data-tip="Rating histórico. Sube al vencer rivales mejor rankeados. Se acumula entre sesiones.">ELO</span></th>
+            <th style="border-left:3px solid #555"><span class="elo-tip" style="color:#fff" data-tip="Puntos de torneo (1 por victoria)">Pts</span></th>
+            <th><span class="elo-tip" style="color:#fff" data-tip="Desempate: puntos que anotaste en tus partidos perdidos (los ganados no cuentan)">Dif</span></th>
+            <th style="border-left:3px solid #555"><span class="elo-tip" style="color:#fff" data-tip="Rating histórico. Sube al vencer rivales mejor rankeados. Se acumula entre sesiones.">ELO</span></th>
           </tr>
         </thead>
         <tbody>
@@ -3077,10 +3171,10 @@ function renderFullMatrix(containerId, partidos, jugadores, tipo, titulo) {
                 <span style="text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px">${s.nombre}</span>
               </td>
               ${cells}
-              <td>${s.pj}</td><td style="color:#999">${s.pt}</td><td>${s.pg}</td><td>${s.pp}</td>
-              <td><strong>${s.pts}</strong></td>
-              <td>${s.gf - s.gc >= 0 ? '+' : ''}${s.gf - s.gc}</td>
-              <td class="elo-badge elo-tip" data-tip="Rating histórico acumulado entre sesiones.">${getElo(s.nombre)}</td>
+              <td style="border-left:3px solid #e2e2e2;background:#fafafa">${s.pj}</td><td style="color:#999;background:#fafafa">${s.pt}</td><td style="background:#fafafa">${s.pg}</td><td style="background:#fafafa">${s.pp}</td>
+              <td style="border-left:3px solid #e2e2e2;background:#fffbeb"><strong>${s.pts}</strong></td>
+              <td style="background:#fffbeb">${s.pdif}</td>
+              <td class="elo-badge elo-tip" style="border-left:3px solid #e2e2e2" data-tip="Rating histórico acumulado entre sesiones.">${getElo(s.nombre)}</td>
             </tr>`;
           }).join('')}
         </tbody>
@@ -3107,7 +3201,7 @@ function renderFullMatrix(containerId, partidos, jugadores, tipo, titulo) {
     clearCrosshair();
     td.parentElement.classList.add('row-highlight');
     const colIdx = Array.from(td.parentElement.children).indexOf(td) + 1;
-    el.querySelectorAll(`thead tr th:nth-child(${colIdx}), tbody tr td:nth-child(${colIdx})`).forEach(c => c.classList.add('col-highlight'));
+    el.querySelectorAll(`thead tr.matrix-cols th:nth-child(${colIdx}), tbody tr td:nth-child(${colIdx})`).forEach(c => c.classList.add('col-highlight'));
     td.classList.add('row-highlight-cell');
   });
   el.addEventListener('mouseleave', clearCrosshair);
@@ -3357,6 +3451,14 @@ function generarCanvasExport(tipo) {
   ctx.font = 'bold 18px system-ui, sans-serif';
   ctx.textAlign = 'left';
   ctx.fillText('CLASIFICACIÓN COMPLETA', tableX, y);
+
+  // Etiquetas de grupo sobre las columnas (PJ·PG·PP = partidos, PF·Pts = puntos)
+  ctx.font = 'bold 12px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#9CA3AF';
+  ctx.fillText('🏓 PARTIDOS', tableX + 16 + 40 + 340 + 90, y);
+  ctx.fillStyle = '#b45309';
+  ctx.fillText('🎯 PUNTOS', tableX + 16 + 40 + 340 + 180 + 65, y);
   y += 20;
 
   // Cabecera tabla
@@ -3536,6 +3638,15 @@ function generarCanvasCuadro(partidos, jugadores, tipo, titulo) {
   const oppX0 = tx + C_NUM + C_NAME;
   const statX0 = oppX0 + n * C_OPP;
 
+  // Etiquetas de grupo sobre las columnas de estadísticas
+  const wPartidos = C_STAT * 4, wPuntos = C_STAT * 2;
+  ctx.font = 'bold 11px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#9CA3AF';
+  ctx.fillText('🏓 PARTIDOS', statX0 + wPartidos / 2, ty - 7);
+  ctx.fillStyle = '#b45309';
+  ctx.fillText('🎯 PUNTOS', statX0 + wPartidos + wPuntos / 2, ty - 7);
+
   // Cabecera de la tabla (fila negra con números)
   ctx.fillStyle = '#0A0A0A';
   ctx.fillRect(tx, ty, gridW, HEAD_ROW_H);
@@ -3613,8 +3724,7 @@ function generarCanvasCuadro(partidos, jugadores, tipo, titulo) {
     }
 
     // Estadísticas: PJ, PT, PG, PP, Pts (bold), Dif, ELO (gris)
-    const dif = s.gf - s.gc;
-    const statVals = [s.pj, s.pt, s.pg, s.pp, s.pts, (dif >= 0 ? '+' : '') + dif, getElo(s.nombre)];
+    const statVals = [s.pj, s.pt, s.pg, s.pp, s.pts, s.pdif, getElo(s.nombre)];
     let stx = statX0;
     statVals.forEach((v, i) => {
       ctx.fillStyle = i === 6 ? '#BBBBBB' : (i === 1 ? '#999999' : (i === 4 ? '#0A0A0A' : '#333'));
@@ -3635,6 +3745,12 @@ function generarCanvasCuadro(partidos, jugadores, tipo, titulo) {
   for (let i = 1; i <= n; i++) vlines.push(oppX0 + i * C_OPP);
   let s2 = statX0; STAT_W.forEach(w => { vlines.push(s2); s2 += w; }); vlines.push(s2);
   vlines.forEach(vx => { ctx.beginPath(); ctx.moveTo(vx, ty); ctx.lineTo(vx, ty + HEAD_ROW_H + n * ROW_H); ctx.stroke(); });
+  // Separadores de grupo más marcados: inicio de PARTIDOS, de PUNTOS y de ELO
+  ctx.strokeStyle = '#9CA3AF';
+  ctx.lineWidth = 2;
+  [statX0, statX0 + C_STAT * 4, statX0 + C_STAT * 6].forEach(vx => {
+    ctx.beginPath(); ctx.moveTo(vx, ty); ctx.lineTo(vx, ty + HEAD_ROW_H + n * ROW_H); ctx.stroke();
+  });
 
   // Borde del 1er lugar
   ctx.strokeStyle = '#0A0A0A';
@@ -3829,6 +3945,10 @@ function closeModal(id) {
   document.getElementById(id).classList.remove('open');
 }
 
+function openReglasModal() {
+  document.getElementById('modalReglas').classList.add('open');
+}
+
 // ===================== HEAD-TO-HEAD =====================
 function openH2HModal(nombre) {
   renderH2HModal(nombre);
@@ -3997,6 +4117,7 @@ function renderLigas() {
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;margin-bottom:24px">
         <button class="btn btn-sm" onclick="openLoadModal()">📂 Cargar Liga</button>
         <button class="btn btn-sm" onclick="openEloModal()">⭐ Ranking ELO Histórico</button>
+        <button class="btn btn-sm" onclick="openReglasModal()">📜 Reglas</button>
       </div>
       <h3 style="margin-bottom:12px;font-size:15px;font-weight:700">Historial de Sesiones</h3>
       <div id="historialSesiones"></div>
