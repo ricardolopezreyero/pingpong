@@ -4360,8 +4360,14 @@ function renderLigas() {
   renderWelcome(); // fill #historialSesiones
 }
 
+// Nombre por defecto de una liga nueva: la fecha local de hoy, AAAA_MM_DD
+function nombreLigaPorDefecto() {
+  const n = new Date();
+  return `${n.getFullYear()}_${String(n.getMonth() + 1).padStart(2, '0')}_${String(n.getDate()).padStart(2, '0')}`;
+}
+
 function promptNuevaLiga() {
-  const nombre = prompt('Nombre de la nueva liga:', 'Liga ' + (ligasContainer.ligas.length + 1));
+  const nombre = prompt('Nombre de la nueva liga:', nombreLigaPorDefecto());
   if (!nombre || !nombre.trim()) return;
   crearNuevaLiga(nombre.trim());
 }
@@ -4401,8 +4407,7 @@ function nuevaLiga() {
 
 function confirmarNuevaLiga() {
   openConfirmModal('¿Nueva Liga?', 'Se creará una nueva liga (el ELO histórico se conserva).', () => {
-    const nombre = 'Liga ' + (ligasContainer.ligas.length + 1);
-    crearNuevaLiga(nombre);
+    crearNuevaLiga(nombreLigaPorDefecto());
   });
 }
 
