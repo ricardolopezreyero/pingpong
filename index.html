@@ -2252,6 +2252,7 @@ function guardarFoto() {
 
   ensurePlayer(f.nombre);
   ligaData.jugadores[f.nombre].foto = dataURL;
+  ligaData.jugadores[f.nombre].fotoTs = Date.now(); // para resolver conflictos entre compus
   saveLiga();
   const j = torneoState.jugadores.find(p => p.nombre === f.nombre);
   if (j) j.foto = dataURL;
@@ -2265,7 +2266,12 @@ function quitarFoto() {
   const f = _fotoEdit;
   if (!f) return;
   if (!confirm(`¿Quitar la foto de ${f.nombre}?`)) return;
-  if (ligaData.jugadores[f.nombre]) { delete ligaData.jugadores[f.nombre].foto; saveLiga(); }
+  if (ligaData.jugadores[f.nombre]) {
+    delete ligaData.jugadores[f.nombre].foto;
+    // Marcar CUÁNDO se quitó: así el borrado también gana en otras compus
+    ligaData.jugadores[f.nombre].fotoTs = Date.now();
+    saveLiga();
+  }
   const j = torneoState.jugadores.find(p => p.nombre === f.nombre);
   if (j) j.foto = null;
   saveState();
@@ -4860,10 +4866,12 @@ async function handleGoogleLogin(response) {
     try { localStorage.setItem(USER_CACHE_KEY, JSON.stringify(_currentUser)); } catch {}
   }
 
-  // If app already running (One Tap silent refresh), just update credential + sync — no re-init
+  // If app already running (One Tap silent refresh): PRIMERO bajar y fusionar
+  // lo de la nube (fotos/ELO de otras compus), DESPUÉS subir el resultado.
+  // Antes empujaba lo local a ciegas y podía pisar cambios hechos en otra compu.
   if (_appInitialized) {
     renderUserPill();
-    syncToCloud();
+    sincronizarConNube();
     return;
   }
 
@@ -4894,23 +4902,54 @@ async function handleGoogleLogin(response) {
   renderUserPill();
   _appInitialized = true;
   init();
+  // Subir el resultado de la fusión: así lo local (p.ej. fotos agregadas sin
+  // sesión) queda en la nube desde el primer login en esta compu.
+  syncToCloud();
+}
+
+// Sincronización bidireccional: baja lo de la nube, fusiona y sube el resultado.
+async function sincronizarConNube() {
+  if (!_currentCredential || !WORKER_URL) return;
+  try {
+    const res = await fetch(WORKER_URL + '/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential: _currentCredential })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.ligaData) {
+        mergeLigaData(data.ligaData);
+        renderAll();
+      }
+    }
+  } catch (e) {
+    console.warn('No se pudo bajar de la nube; se sube lo local', e);
+  }
+  syncToCloud();
 }
 
 function mergeLigaData(cloudData) {
-  // Merge cloud jugadores con local — cloud wins on ELO, keep higher pj
+  // Merge cloud jugadores con local:
+  //  - Récord (elo/pj/pg/racha): gana el que tenga más partidos jugados.
+  //  - Foto: gana la más RECIENTE por fotoTs, sin importar quién ganó el récord
+  //    (cubre agregar, cambiar y quitar foto desde cualquier computadora).
   if (cloudData.jugadores) {
     Object.entries(cloudData.jugadores).forEach(([nombre, cloudJ]) => {
       const local = ligaData.jugadores[nombre];
       if (!local) {
         ligaData.jugadores[nombre] = cloudJ;
-      } else {
-        // Keep higher ELO (more sessions played)
-        if ((cloudJ.pj || 0) > (local.pj || 0)) {
-          // No perder la foto local si el registro de la nube no trae una
-          if (local.foto && !cloudJ.foto) cloudJ.foto = local.foto;
-          ligaData.jugadores[nombre] = cloudJ;
-        }
+        return;
       }
+      const ganador = (cloudJ.pj || 0) > (local.pj || 0) ? cloudJ : local;
+      const tsLocal = local.fotoTs || (local.foto ? 1 : 0);
+      const tsCloud = cloudJ.fotoTs || (cloudJ.foto ? 1 : 0);
+      const fotoSrc = tsCloud > tsLocal ? cloudJ : local;
+      const fusion = { ...ganador };
+      if (fotoSrc.foto) fusion.foto = fotoSrc.foto; else delete fusion.foto;
+      const maxTs = Math.max(tsLocal, tsCloud);
+      if (maxTs > 1) fusion.fotoTs = maxTs;
+      ligaData.jugadores[nombre] = fusion;
     });
   }
   // Merge sesiones — add cloud sessions not in local (by fecha)
