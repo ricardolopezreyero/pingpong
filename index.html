@@ -555,8 +555,13 @@ tr.row-highlight td{background:rgba(0,0,0,0.06)!important}
         <h2 style="margin:0">¡Individual Terminado!</h2>
         <p id="finIndivMsg" style="color:#666;font-size:14px;margin:0 0 6px"></p>
         <button class="btn-ganador" onclick="toggleAudioGanador()"
-          style="border:2px solid #000;color:#000;background:#fff;border-radius:24px;padding:9px 20px;font-size:14px;font-weight:800;cursor:pointer;letter-spacing:.3px;margin-bottom:10px">
+          style="border:2px solid #000;color:#000;background:#fff;border-radius:24px;padding:9px 20px;font-size:14px;font-weight:800;cursor:pointer;letter-spacing:.3px">
           ▶️ Himno del ganador
+        </button>
+        <button class="chk-confeti" onclick="toggleConfetiPref()"
+          title="Con confeti la celebración es completa; apágalo para solo la música"
+          style="border:none;background:none;color:#666;font-size:11px;cursor:pointer;padding:2px 6px;letter-spacing:.3px;margin-bottom:8px">
+          🎊 Confeti: SÍ
         </button>
         <button class="btn btn-primary" style="width:100%" onclick="closeModal('modalFinIndiv');mostrarPreParejas()">🤝 Continuar a Dobles</button>
         <button class="btn" style="width:100%" onclick="terminarLigaSinDobles()">✅ Terminar la Liga aquí</button>
@@ -4748,16 +4753,31 @@ function continuarLiga() {
   switchTab(2);
 }
 
-// ===================== HIMNO DEL GANADOR =====================
+// ===================== HIMNO DEL GANADOR + CONFETI =====================
 // Widget de audio para los cierres (individuales y parejas). Nunca suena solo:
 // se reproduce ÚNICAMENTE al picar play, una sola vez, sin loop.
+// Al reproducir, cae confeti en toda la pantalla (desactivable con el switch;
+// la preferencia se recuerda y viene ENCENDIDA por default).
+
 function widgetGanadorHtml(oscuro = false) {
   const estilo = oscuro
     ? 'border:2px solid #FACC15;color:#FACC15;background:transparent'
     : 'border:2px solid #000;color:#000;background:#fff';
-  return `<button class="btn-ganador" onclick="toggleAudioGanador()"
-    style="${estilo};border-radius:24px;padding:9px 20px;font-size:14px;font-weight:800;cursor:pointer;letter-spacing:.3px">
-    ▶️ Himno del ganador
+  return `<span style="display:inline-flex;flex-direction:column;align-items:center;gap:5px">
+    <button class="btn-ganador" onclick="toggleAudioGanador()"
+      style="${estilo};border-radius:24px;padding:9px 20px;font-size:14px;font-weight:800;cursor:pointer;letter-spacing:.3px">
+      ▶️ Himno del ganador
+    </button>
+    ${chkConfetiHtml(oscuro)}
+  </span>`;
+}
+
+function chkConfetiHtml(oscuro = false) {
+  const color = oscuro ? '#9CA3AF' : '#666';
+  return `<button class="chk-confeti" onclick="toggleConfetiPref()"
+    title="Con confeti la celebración es completa; apágalo para solo la música"
+    style="border:none;background:none;color:${color};font-size:11px;cursor:pointer;padding:2px 6px;letter-spacing:.3px">
+    ${_confetiOn ? '🎊 Confeti: SÍ' : '🚫 Confeti: NO'}
   </button>`;
 }
 
@@ -4769,23 +4789,150 @@ function toggleAudioGanador() {
   const a = document.getElementById('audioGanador');
   if (!a) return;
   if (a.paused) {
-    a.play().then(() => _labelGanador('⏸ Pausar himno'))
-      .catch(() => alert('No se pudo reproducir el audio.'));
+    a.play().then(() => {
+      _labelGanador('⏸ Pausar himno');
+      if (_confetiOn) iniciarConfeti();
+    }).catch(() => alert('No se pudo reproducir el audio.'));
   } else {
     a.pause();
     _labelGanador('▶️ Himno del ganador');
+    detenerConfeti();
   }
 }
 
 // Al terminar la canción: se detiene y queda lista para otra vez (sin loop)
 document.addEventListener('DOMContentLoaded', () => {
   const a = document.getElementById('audioGanador');
-  if (!a) return;
-  a.addEventListener('ended', () => {
-    a.currentTime = 0;
-    _labelGanador('▶️ Himno del ganador');
+  if (a) {
+    a.addEventListener('ended', () => {
+      a.currentTime = 0;
+      _labelGanador('▶️ Himno del ganador');
+      detenerConfeti();
+    });
+  }
+  // Sincronizar el switch estático del modal con la preferencia recordada
+  document.querySelectorAll('.chk-confeti').forEach(b => {
+    b.innerHTML = _confetiOn ? '🎊 Confeti: SÍ' : '🚫 Confeti: NO';
   });
 });
+
+// ── Preferencia de confeti (encendida por default, recordada) ──
+let _confetiOn = (() => { try { return localStorage.getItem('pptorneo_confeti') !== 'off'; } catch { return true; } })();
+
+function toggleConfetiPref() {
+  _confetiOn = !_confetiOn;
+  try { localStorage.setItem('pptorneo_confeti', _confetiOn ? 'on' : 'off'); } catch {}
+  document.querySelectorAll('.chk-confeti').forEach(b => {
+    b.innerHTML = _confetiOn ? '🎊 Confeti: SÍ' : '🚫 Confeti: NO';
+  });
+  const a = document.getElementById('audioGanador');
+  if (!_confetiOn) detenerConfeti();
+  else if (a && !a.paused) iniciarConfeti(); // si la música ya suena, arranca la fiesta
+}
+
+// ── Motor de confeti ──
+// Canvas fijo sobre toda la pantalla (no bloquea clics). Dos fuentes:
+//  1. Lluvia continua desde arriba (aleatoria, suave).
+//  2. Ráfagas de "cañón" desde las esquinas inferiores cada ~2.2s (estructura).
+// Al pausar/terminar la música se deja de emitir; las piezas en el aire caen
+// hasta salir y el canvas se limpia y elimina solo.
+const CONFETI_COLORES = ['#FACC15', '#EF4444', '#22C55E', '#3B82F6', '#A855F7', '#EC4899', '#F97316', '#14B8A6', '#FFFFFF'];
+const CONFETI_MAX = 260; // tope de piezas simultáneas (fluido en cualquier laptop)
+let _confeti = null;     // { canvas, ctx, piezas, emitiendo, ultimaRafaga, ladoRafaga }
+
+function _nuevaPieza(x, y, vx, vy) {
+  return {
+    x, y, vx, vy,
+    w: 6 + Math.random() * 7,
+    h: 4 + Math.random() * 6,
+    rot: Math.random() * Math.PI * 2,
+    vr: (Math.random() - 0.5) * 0.25,
+    color: CONFETI_COLORES[Math.floor(Math.random() * CONFETI_COLORES.length)],
+    faseVaiven: Math.random() * Math.PI * 2,
+    vaiven: 0.6 + Math.random() * 1.2
+  };
+}
+
+function iniciarConfeti() {
+  if (_confeti) { _confeti.emitiendo = true; return; }
+  const canvas = document.createElement('canvas');
+  canvas.id = 'confetiCanvas';
+  canvas.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:9999';
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  document.body.appendChild(canvas);
+  _confeti = { canvas, ctx: canvas.getContext('2d'), piezas: [], emitiendo: true, ultimaRafaga: 0, ladoRafaga: 0 };
+  // Arranque festivo: ráfagas desde ambas esquinas
+  _rafagaConfeti(0); _rafagaConfeti(1);
+  requestAnimationFrame(_confetiFrame);
+}
+
+function detenerConfeti() {
+  if (_confeti) _confeti.emitiendo = false;
+}
+
+function _rafagaConfeti(lado) { // 0 = esquina inferior izquierda, 1 = derecha
+  const c = _confeti;
+  if (!c) return;
+  const x0 = lado === 0 ? 0 : c.canvas.width;
+  const dir = lado === 0 ? 1 : -1; // hacia dónde abre el cañón (al centro)
+  for (let i = 0; i < 26; i++) {
+    // Ángulo: recto hacia arriba, abierto 0.2–0.7 rad hacia el centro de la pantalla
+    const ang = -Math.PI / 2 + dir * (0.2 + Math.random() * 0.5);
+    const vel = 9 + Math.random() * 7;
+    c.piezas.push(_nuevaPieza(x0, c.canvas.height + 8, Math.cos(ang) * vel, Math.sin(ang) * vel));
+  }
+}
+
+function _confetiFrame(ts) {
+  const c = _confeti;
+  if (!c) return;
+  const { ctx, canvas } = c;
+
+  // Ajustar al tamaño actual de la ventana (por si entran a pantalla completa)
+  if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+
+  if (c.emitiendo) {
+    // Lluvia continua desde arriba
+    for (let i = 0; i < 3 && c.piezas.length < CONFETI_MAX; i++) {
+      c.piezas.push(_nuevaPieza(Math.random() * canvas.width, -12, (Math.random() - 0.5) * 1.5, 1.5 + Math.random() * 2.5));
+    }
+    // Ráfaga alternando esquinas cada ~2.2s
+    if (ts - c.ultimaRafaga > 2200 && c.piezas.length < CONFETI_MAX - 30) {
+      c.ladoRafaga = 1 - c.ladoRafaga;
+      _rafagaConfeti(c.ladoRafaga);
+      c.ultimaRafaga = ts;
+    }
+  }
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  c.piezas = c.piezas.filter(p => {
+    p.vy += 0.055;          // gravedad
+    p.vx *= 0.992;          // resistencia del aire
+    p.faseVaiven += 0.06;
+    p.x += p.vx + Math.sin(p.faseVaiven) * p.vaiven;
+    p.y += p.vy;
+    p.rot += p.vr;
+    if (p.y > canvas.height + 24) return false; // salió por abajo
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.rot);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+    ctx.restore();
+    return true;
+  });
+
+  if (!c.emitiendo && c.piezas.length === 0) {
+    canvas.remove();     // fiesta terminada: limpiar todo
+    _confeti = null;
+    return;
+  }
+  requestAnimationFrame(_confetiFrame);
+}
 
 // ===================== PANTALLA COMPLETA =====================
 function togglePantallaCompleta() {
