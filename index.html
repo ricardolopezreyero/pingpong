@@ -313,6 +313,9 @@ tr.row-highlight td{background:rgba(0,0,0,0.06)!important}
 
 
 <!-- FOOTER -->
+<!-- Himno del ganador: un solo reproductor compartido, sin loop, sin autoplay -->
+<audio id="audioGanador" src="audio/ganador.mp3" preload="none"></audio>
+
 <footer>
   <button class="btn btn-sm" onclick="guardarLiga()">💾 Guardar Liga</button>
   <button class="btn btn-sm" id="btnDescIndiv" onclick="exportarCanvas('individuales')" disabled>📥 PNG Individual</button>
@@ -550,7 +553,11 @@ tr.row-highlight td{background:rgba(0,0,0,0.06)!important}
       <div style="flex:0 0 250px;min-width:230px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding-top:16px">
         <div style="font-size:52px;line-height:1">🏆</div>
         <h2 style="margin:0">¡Individual Terminado!</h2>
-        <p id="finIndivMsg" style="color:#666;font-size:14px;margin:0 0 14px"></p>
+        <p id="finIndivMsg" style="color:#666;font-size:14px;margin:0 0 6px"></p>
+        <button class="btn-ganador" onclick="toggleAudioGanador()"
+          style="border:2px solid #000;color:#000;background:#fff;border-radius:24px;padding:9px 20px;font-size:14px;font-weight:800;cursor:pointer;letter-spacing:.3px;margin-bottom:10px">
+          ▶️ Himno del ganador
+        </button>
         <button class="btn btn-primary" style="width:100%" onclick="closeModal('modalFinIndiv');mostrarPreParejas()">🤝 Continuar a Dobles</button>
         <button class="btn" style="width:100%" onclick="terminarLigaSinDobles()">✅ Terminar la Liga aquí</button>
       </div>
@@ -2866,6 +2873,7 @@ function renderIndividualesGrupos() {
       <div style="display:flex;justify-content:center;gap:24px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">${podio}</div>
       <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
         ${!torneoState.sinDobles ? `<button onclick="mostrarPreParejas()" style="padding:9px 18px;border:2px solid #fff;border-radius:6px;background:#fff;color:#000;cursor:pointer;font-size:14px;font-weight:700">🎉 GENERAR PAREJAS</button>` : ''}
+        ${widgetGanadorHtml(true)}
       </div>
     </div>`;
   } else if (playoffs.length > 0) {
@@ -2978,6 +2986,7 @@ function renderIndividuales() {
           style="padding:9px 18px;border:2px solid #fff;border-radius:6px;background:transparent;color:#fff;cursor:pointer;font-size:14px;font-weight:700">
           📥 Descargar cuadro
         </button>
+        ${widgetGanadorHtml(true)}
       </div>
     </div>`;
   } else if (torneoState.fase === 'individuales' && !partidos.some(p => p.estado !== 'por_jugar')) {
@@ -3411,7 +3420,10 @@ function renderParejas() {
       <div style="font-size:20px;font-weight:900">${camp ? camp.nombre : '—'}</div>
       <div style="font-size:13px;color:#aaa;margin-top:4px">Campeón Individual</div>
       <div style="margin-top:14px;font-size:13px;opacity:.7">Liga terminada sin fase de dobles</div>
-      <button onclick="mostrarPreParejas()" style="margin-top:16px;padding:8px 16px;border:2px solid #fff;border-radius:6px;background:transparent;color:#fff;cursor:pointer;font-size:13px;font-weight:700">Agregar Dobles igualmente</button>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:16px">
+        <button onclick="mostrarPreParejas()" style="padding:8px 16px;border:2px solid #fff;border-radius:6px;background:transparent;color:#fff;cursor:pointer;font-size:13px;font-weight:700">Agregar Dobles igualmente</button>
+        ${widgetGanadorHtml(true)}
+      </div>
     </div>`;
     return;
   }
@@ -3437,10 +3449,13 @@ function renderParejas() {
           <div style="font-size:12px;color:#aaa;margin-top:2px">${segundo.pg} victorias</div>
         </div>` : ''}
       </div>
-      <button onclick="descargarCuadroTipo('parejas')"
-        style="padding:9px 18px;border:2px solid #fff;border-radius:6px;background:transparent;color:#fff;cursor:pointer;font-size:14px;font-weight:700">
-        📥 Descargar cuadro
-      </button>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        <button onclick="descargarCuadroTipo('parejas')"
+          style="padding:9px 18px;border:2px solid #fff;border-radius:6px;background:transparent;color:#fff;cursor:pointer;font-size:14px;font-weight:700">
+          📥 Descargar cuadro
+        </button>
+        ${widgetGanadorHtml(true)}
+      </div>
     </div>`;
   } else if (torneoState.fase === 'parejas' && !partidos.some(p => p.estado !== 'por_jugar')) {
     // Aún no empiezan las parejas → permitir volver a elegirlas
@@ -4732,6 +4747,45 @@ function continuarLiga() {
   if ((torneoState.fase === 'parejas' || torneoState.fase === 'done') && !torneoState.sinDobles) { switchTab(3); return; }
   switchTab(2);
 }
+
+// ===================== HIMNO DEL GANADOR =====================
+// Widget de audio para los cierres (individuales y parejas). Nunca suena solo:
+// se reproduce ÚNICAMENTE al picar play, una sola vez, sin loop.
+function widgetGanadorHtml(oscuro = false) {
+  const estilo = oscuro
+    ? 'border:2px solid #FACC15;color:#FACC15;background:transparent'
+    : 'border:2px solid #000;color:#000;background:#fff';
+  return `<button class="btn-ganador" onclick="toggleAudioGanador()"
+    style="${estilo};border-radius:24px;padding:9px 20px;font-size:14px;font-weight:800;cursor:pointer;letter-spacing:.3px">
+    ▶️ Himno del ganador
+  </button>`;
+}
+
+function _labelGanador(txt) {
+  document.querySelectorAll('.btn-ganador').forEach(b => { b.innerHTML = txt; });
+}
+
+function toggleAudioGanador() {
+  const a = document.getElementById('audioGanador');
+  if (!a) return;
+  if (a.paused) {
+    a.play().then(() => _labelGanador('⏸ Pausar himno'))
+      .catch(() => alert('No se pudo reproducir el audio.'));
+  } else {
+    a.pause();
+    _labelGanador('▶️ Himno del ganador');
+  }
+}
+
+// Al terminar la canción: se detiene y queda lista para otra vez (sin loop)
+document.addEventListener('DOMContentLoaded', () => {
+  const a = document.getElementById('audioGanador');
+  if (!a) return;
+  a.addEventListener('ended', () => {
+    a.currentTime = 0;
+    _labelGanador('▶️ Himno del ganador');
+  });
+});
 
 // ===================== PANTALLA COMPLETA =====================
 function togglePantallaCompleta() {
