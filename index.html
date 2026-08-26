@@ -1833,7 +1833,16 @@ function togglePresente(idx) {
   renderPlayerList();
 }
 
+// Jugador con nombre protegido: NO se puede editar su nombre ni renombrar a
+// nadie más con este nombre. Todos los demás jugadores siguen siendo editables.
+const JUGADOR_BLOQUEADO = 'DON RICARDO';
+
 function editarNombre(idx) {
+  const j = torneoState.jugadores[idx];
+  if (j && j.nombre === JUGADOR_BLOQUEADO) {
+    alert(`El nombre de ${JUGADOR_BLOQUEADO} está bloqueado y no se puede editar.`);
+    return;
+  }
   document.getElementById('playerName_' + idx).style.display = 'none';
   document.getElementById('editBtn_' + idx).style.display = 'none';
   const input = document.getElementById('playerNameInput_' + idx);
@@ -1859,6 +1868,15 @@ function guardarNombre(idx) {
   const viejo = j.nombre;
   if (!nuevo) { cancelarNombre(idx); return; }
   if (nuevo === viejo) { cancelarNombre(idx); return; }
+  // Candado: el jugador protegido no se renombra, y nadie puede tomar su nombre
+  if (viejo === JUGADOR_BLOQUEADO) {
+    alert(`El nombre de ${JUGADOR_BLOQUEADO} está bloqueado y no se puede editar.`);
+    cancelarNombre(idx); return;
+  }
+  if (nuevo === JUGADOR_BLOQUEADO) {
+    alert(`"${JUGADOR_BLOQUEADO}" es un nombre reservado. Elige otro.`);
+    return;
+  }
   if (torneoState.jugadores.find((p, i) => i !== idx && p.nombre === nuevo)) {
     alert('Ya existe un jugador con ese nombre.'); return;
   }
@@ -1970,7 +1988,9 @@ function _rosterRowHtml(j, idx) {
         style="display:none;flex:1;padding:4px 8px;border:2px solid #000;border-radius:6px;font-size:14px;font-weight:600"
         value="${j.nombre}"
         onkeydown="if(event.key==='Enter')guardarNombre(${idx});else if(event.key==='Escape')cancelarNombre(${idx})">
-      <button class="btn btn-sm" id="editBtn_${idx}" onclick="editarNombre(${idx})" title="Editar nombre">✏</button>
+      ${j.nombre === JUGADOR_BLOQUEADO
+        ? `<button class="btn btn-sm" id="editBtn_${idx}" title="Nombre bloqueado — este jugador no se puede editar" style="opacity:.5;cursor:not-allowed" onclick="alert('El nombre de ${JUGADOR_BLOQUEADO} está bloqueado y no se puede editar.')">🔒</button>`
+        : `<button class="btn btn-sm" id="editBtn_${idx}" onclick="editarNombre(${idx})" title="Editar nombre">✏</button>`}
       <button class="btn btn-sm" id="saveBtn_${idx}" style="display:none;background:#000;color:#fff" onclick="guardarNombre(${idx})" title="Guardar">✓</button>
       <button class="btn btn-sm" onclick="openH2HModal('${j.nombre.replace(/'/g,"\\'")}');" title="Historial H2H">📊</button>
       <button class="btn btn-sm" onclick="toggleFotoInput(${idx})" title="Foto">📷</button>
@@ -4503,6 +4523,64 @@ function cargarJugadoresHistorico() {
   ].map(n => ({ nombre: n, foto: null, seFue: false, presente: false }));
 }
 
+// Renombra a un jugador dentro del estado de una liga (roster, partidos,
+// parejas). Si el roster ya tiene el nombre nuevo, elimina la entrada vieja
+// duplicada antes de renombrar referencias.
+function _renombrarEnState(st, viejo, nuevo) {
+  if (!st) return;
+  const jugs = st.jugadores || [];
+  const yaTieneNuevo = jugs.some(j => j.nombre === nuevo);
+  st.jugadores = jugs.filter(j => !(j.nombre === viejo && yaTieneNuevo));
+  st.jugadores.forEach(j => { if (j.nombre === viejo) j.nombre = nuevo; });
+  (st.partidos || []).forEach(p => {
+    if (p.jugador1 === viejo) p.jugador1 = nuevo;
+    if (p.jugador2 === viejo) p.jugador2 = nuevo;
+    if (p.ganador === viejo) p.ganador = nuevo;
+  });
+  (st.parejas || []).forEach(pa => {
+    pa.jugadores = (pa.jugadores || []).map(n => n === viejo ? nuevo : n);
+    if (pa.nombre) pa.nombre = pa.nombre.split(' / ').map(n => n === viejo ? nuevo : n).join(' / ');
+  });
+  (st.partidosParejas || []).forEach(p => {
+    if (Array.isArray(p.jugador1)) p.jugador1 = p.jugador1.map(n => n === viejo ? nuevo : n);
+    if (Array.isArray(p.jugador2)) p.jugador2 = p.jugador2.map(n => n === viejo ? nuevo : n);
+    if (p.pareja1Nombre) p.pareja1Nombre = p.pareja1Nombre.split(' / ').map(n => n === viejo ? nuevo : n).join(' / ');
+    if (p.pareja2Nombre) p.pareja2Nombre = p.pareja2Nombre.split(' / ').map(n => n === viejo ? nuevo : n).join(' / ');
+    if (Array.isArray(p.ganador)) p.ganador = p.ganador.map(n => n === viejo ? nuevo : n);
+    else if (p.ganador === viejo) p.ganador = nuevo;
+  });
+}
+
+// Migración única e idempotente: RICARDO → DON RICARDO en la base ELO, el
+// historial de sesiones y todas las ligas. Si ambos nombres existen en la
+// base, conserva el registro con más partidos jugados.
+function _migrarDonRicardo() {
+  const V = 'RICARDO', N = JUGADOR_BLOQUEADO; // 'DON RICARDO'
+  const base = ligaData.jugadores || {};
+  const statesConViejo = (ligasContainer.ligas || []).some(l => {
+    const st = l.id === ligasContainer.activeId ? torneoState : l.state;
+    return st && (st.jugadores || []).some(j => j.nombre === V);
+  });
+  if (!base[V] && !statesConViejo) return; // nada que migrar
+
+  if (base[V]) {
+    if (!base[N] || (base[N].pj || 0) <= (base[V].pj || 0)) base[N] = base[V];
+    delete base[V];
+  }
+  (ligaData.sesiones || []).forEach(s => {
+    if (s.campeonIndiv === V) s.campeonIndiv = N;
+    if (s.campeonParejas) s.campeonParejas = s.campeonParejas.split(' / ').map(n => n === V ? N : n).join(' / ');
+  });
+  saveLiga();
+
+  (ligasContainer.ligas || []).forEach(l => {
+    const st = l.id === ligasContainer.activeId ? torneoState : l.state;
+    _renombrarEnState(st, V, N);
+  });
+  saveState();
+  console.info('Migración aplicada: RICARDO → DON RICARDO');
+}
+
 function init() {
   loadLigas();
   loadState();
@@ -4529,6 +4607,9 @@ function init() {
 
   // Migrate old states: ensure all players have presente field
   torneoState.jugadores.forEach(j => { if (j.presente === undefined) j.presente = true; });
+
+  // Migración única: RICARDO pasa a llamarse DON RICARDO en TODOS los datos
+  _migrarDonRicardo();
 
   // Registrar en la base histórica a cualquier jugador de la lista actual que
   // aún no esté (sin tocar lastUsed de los ya registrados).
