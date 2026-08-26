@@ -144,6 +144,12 @@ label{display:block;font-weight:600;margin-bottom:4px;font-size:13px}
 .user-pill:hover{background:#f0f0f0}
 /* BANNER */
 .champion-banner{background:#000;color:#fff;padding:20px;border-radius:8px;text-align:center;font-size:20px;font-weight:bold;margin-bottom:16px}
+/* Podio de ganadores: 2° | 1° | 3° con pedestales escalonados */
+.podio{display:flex;align-items:flex-end;justify-content:center;gap:10px;margin:10px 0 4px}
+.podio .podio-col{display:flex;flex-direction:column;align-items:center;gap:5px;width:96px}
+.podio .podio-nom{font-weight:800;font-size:13px;text-align:center;line-height:1.15;word-break:break-word}
+.podio .podio-sub{font-size:11px;opacity:.65;font-weight:400}
+.podio .podio-base{width:100%;border-radius:8px 8px 0 0;display:flex;align-items:flex-start;justify-content:center;font-weight:900;font-size:15px;padding-top:5px;color:#000}
 /* MATCH HISTORY ROW */
 .game-history{font-size:11px;color:#9CA3AF;margin-bottom:6px}
 /* PLAYER ENTRY */
@@ -551,9 +557,9 @@ tr.row-highlight td{background:rgba(0,0,0,0.06)!important}
   <div class="modal-box" style="max-width:1020px;width:94%;max-height:90vh;overflow-y:auto">
     <div style="display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start">
       <div style="flex:0 0 250px;min-width:230px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding-top:16px">
-        <div style="font-size:52px;line-height:1">🏆</div>
-        <h2 style="margin:0">¡Individual Terminado!</h2>
-        <p id="finIndivMsg" style="color:#666;font-size:14px;margin:0 0 6px"></p>
+        <h2 style="margin:0">🏆 ¡Individual Terminado!</h2>
+        <div id="finIndivPodio"></div>
+        <p id="finIndivMsg" style="display:none"></p>
         <button class="btn-ganador" onclick="toggleAudioGanador()"
           style="border:2px solid #000;color:#000;background:#fff;border-radius:24px;padding:9px 20px;font-size:14px;font-weight:800;cursor:pointer;letter-spacing:.3px">
           ▶️ Himno del ganador
@@ -1355,6 +1361,7 @@ function checkPhaseComplete(partidos, tipo) {
         const standings = getStandings(partidos, torneoState.jugadores.filter(j => j.presente === true && !j.seFue));
         const camp = standings[0];
         document.getElementById('finIndivMsg').textContent = camp ? `Campeón: ${camp.nombre} · ${camp.pg} victorias` : '¡Torneo completado!';
+        document.getElementById('finIndivPodio').innerHTML = podioHtml(podioIndividuales());
         renderFinIndivTabla();
         document.getElementById('modalFinIndiv').classList.add('open');
       }, 350);
@@ -2815,6 +2822,7 @@ function cerrarGrupos() {
   const lug = lugaresFinales();
   setTimeout(() => {
     document.getElementById('finIndivMsg').textContent = lug[1] ? `Campeón: ${lug[1]}` : '¡Fase de grupos completada!';
+    document.getElementById('finIndivPodio').innerHTML = podioHtml(podioIndividuales());
     renderFinIndivTabla();
     document.getElementById('modalFinIndiv').classList.add('open');
   }, 350);
@@ -2868,14 +2876,9 @@ function renderIndividualesGrupos() {
   let banner = '';
   if (torneoState.fase === 'individuales_done' || torneoState.fase === 'done') {
     const lug = lugaresFinales();
-    const medallas = ['🥇', '🥈', '🥉', '4°'];
-    const podio = [1, 2, 3, 4].map((k, i) => lug[k]
-      ? `<div style="text-align:center;${i > 0 ? 'opacity:.9' : ''}">
-          <div style="font-size:${i === 0 ? 26 : 20}px">${medallas[i]}</div>
-          <div style="font-size:${i === 0 ? 18 : 14}px;font-weight:${i === 0 ? 900 : 700}">${lug[k]}</div>
-        </div>` : '').join('');
     banner = `<div class="champion-banner">
-      <div style="display:flex;justify-content:center;gap:24px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">${podio}</div>
+      ${podioHtml([1, 2, 3].filter(k => lug[k]).map(k => ({ nombre: lug[k], sub: '' })), true)}
+      ${lug[4] ? `<div style="font-size:12px;color:#aaa;margin-bottom:10px">4° lugar: ${lug[4]}</div>` : ''}
       <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
         ${!torneoState.sinDobles ? `<button onclick="mostrarPreParejas()" style="padding:9px 18px;border:2px solid #fff;border-radius:6px;background:#fff;color:#000;cursor:pointer;font-size:14px;font-weight:700">🎉 GENERAR PAREJAS</button>` : ''}
         ${widgetGanadorHtml(true)}
@@ -2967,21 +2970,8 @@ function renderIndividuales() {
   // Check champion
   let banner = '';
   if (torneoState.fase === 'individuales_done' || torneoState.fase === 'done') {
-    const campeon = standings[0];
-    const segundo = standings[1];
     banner = `<div class="champion-banner">
-      <div style="display:flex;justify-content:center;gap:24px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
-        <div style="text-align:center">
-          <div style="font-size:28px">🏆</div>
-          <div style="font-size:20px;font-weight:900">${campeon ? campeon.nombre : '—'}</div>
-          <div style="font-size:12px;color:#aaa;margin-top:2px">${campeon ? campeon.pg + ' victorias' : ''}</div>
-        </div>
-        ${segundo ? `<div style="text-align:center;opacity:.85">
-          <div style="font-size:22px">🥈</div>
-          <div style="font-size:16px;font-weight:700">${segundo.nombre}</div>
-          <div style="font-size:12px;color:#aaa;margin-top:2px">${segundo.pg} victorias</div>
-        </div>` : ''}
-      </div>
+      ${podioHtml(standings.slice(0, 3).map(s => ({ nombre: s.nombre, sub: `${s.pg} victorias` })), true)}
       <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
         ${!torneoState.sinDobles ? `<button onclick="mostrarPreParejas()"
           style="padding:9px 18px;border:2px solid #fff;border-radius:6px;background:#fff;color:#000;cursor:pointer;font-size:14px;font-weight:700">
@@ -3412,19 +3402,10 @@ function renderParejas() {
   }
 
   if (torneoState.sinDobles) {
-    let campNombre;
-    if (torneoState.modo === 'grupos') {
-      campNombre = lugaresFinales()[1];
-    } else {
-      const st = getStandings(torneoState.partidos, torneoState.jugadores.filter(j => j.presente === true && !j.seFue));
-      campNombre = st[0] && st[0].nombre;
-    }
-    const camp = campNombre ? { nombre: campNombre } : null;
     container.innerHTML = `<div class="champion-banner" style="margin:0">
-      <div style="font-size:36px;margin-bottom:8px">🏆</div>
-      <div style="font-size:20px;font-weight:900">${camp ? camp.nombre : '—'}</div>
-      <div style="font-size:13px;color:#aaa;margin-top:4px">Campeón Individual</div>
-      <div style="margin-top:14px;font-size:13px;opacity:.7">Liga terminada sin fase de dobles</div>
+      ${podioHtml(podioIndividuales(), true)}
+      <div style="font-size:13px;color:#aaa;margin-top:4px">Individuales</div>
+      <div style="margin-top:10px;font-size:13px;opacity:.7">Liga terminada sin fase de dobles</div>
       <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:16px">
         <button onclick="mostrarPreParejas()" style="padding:8px 16px;border:2px solid #fff;border-radius:6px;background:transparent;color:#fff;cursor:pointer;font-size:13px;font-weight:700">Agregar Dobles igualmente</button>
         ${widgetGanadorHtml(true)}
@@ -3439,21 +3420,8 @@ function renderParejas() {
 
   let banner = '';
   if (torneoState.fase === 'done') {
-    const camp = standings[0];
-    const segundo = standings[1];
     banner = `<div class="champion-banner">
-      <div style="display:flex;justify-content:center;gap:24px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
-        <div style="text-align:center">
-          <div style="font-size:28px">🏆</div>
-          <div style="font-size:18px;font-weight:900">${camp ? camp.nombre : '—'}</div>
-          <div style="font-size:12px;color:#aaa;margin-top:2px">${camp ? camp.pg + ' victorias' : ''}</div>
-        </div>
-        ${segundo ? `<div style="text-align:center;opacity:.85">
-          <div style="font-size:22px">🥈</div>
-          <div style="font-size:15px;font-weight:700">${segundo.nombre}</div>
-          <div style="font-size:12px;color:#aaa;margin-top:2px">${segundo.pg} victorias</div>
-        </div>` : ''}
-      </div>
+      ${podioHtml(standings.slice(0, 3).map(s2 => ({ nombre: s2.nombre, sub: `${s2.pg} victorias` })), true)}
       <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
         <button onclick="descargarCuadroTipo('parejas')"
           style="padding:9px 18px;border:2px solid #fff;border-radius:6px;background:transparent;color:#fff;cursor:pointer;font-size:14px;font-weight:700">
@@ -4751,6 +4719,39 @@ function continuarLiga() {
   if (torneoState.fase === 'config') { switchTab(1); return; }
   if ((torneoState.fase === 'parejas' || torneoState.fase === 'done') && !torneoState.sinDobles) { switchTab(3); return; }
   switchTab(2);
+}
+
+// ===================== PODIO DE GANADORES =====================
+// lugares: hasta 3 entradas [{nombre, sub}] en orden 1°, 2°, 3°.
+// Se dibuja en orden olímpico (2° | 1° | 3°) con pedestales oro/plata/bronce.
+// El avatar usa avatarEl: hoy inicial, y foto automáticamente cuando la tengan.
+function podioHtml(lugares, oscuro = false) {
+  const pedestal = [
+    { alto: 58, color: '#FACC15' },  // 1° oro
+    { alto: 40, color: '#C0C0C4' },  // 2° plata
+    { alto: 28, color: '#CD7F32' }   // 3° bronce
+  ];
+  const col = i => {
+    const l = lugares[i];
+    if (!l) return '';
+    return `<div class="podio-col">
+      ${avatarEl(l.nombre, null, 'lg')}
+      <div class="podio-nom">${l.nombre}</div>
+      ${l.sub ? `<div class="podio-sub">${l.sub}</div>` : ''}
+      <div class="podio-base" style="height:${pedestal[i].alto}px;background:${pedestal[i].color}">${i + 1}°</div>
+    </div>`;
+  };
+  return `<div class="podio" style="color:${oscuro ? '#fff' : '#000'}">${col(1)}${col(0)}${col(2)}</div>`;
+}
+
+// Top 3 de individuales según el modo (simple: tabla; grupos: fase final)
+function podioIndividuales() {
+  if (torneoState.modo === 'grupos') {
+    const lug = lugaresFinales();
+    return [1, 2, 3].filter(k => lug[k]).map(k => ({ nombre: lug[k], sub: '' }));
+  }
+  const st = getStandings(torneoState.partidos, torneoState.jugadores.filter(j => j.presente === true && !j.seFue));
+  return st.slice(0, 3).map(s => ({ nombre: s.nombre, sub: `${s.pg} victorias` }));
 }
 
 // ===================== HIMNO DEL GANADOR + CONFETI =====================
