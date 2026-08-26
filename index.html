@@ -118,6 +118,8 @@ thead .elo-tip:hover::before{top:calc(100% + 1px);bottom:auto;border-top-color:t
 .modal-box h2{margin-bottom:16px}
 /* FOOTER */
 footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:2px solid #000;padding:12px 16px;display:flex;gap:10px;flex-wrap:wrap;z-index:100;justify-content:center}
+#btnFullscreen{position:absolute;right:12px;bottom:10px}
+@media(max-width:1100px){#btnFullscreen{position:static}}
 /* INPUTS */
 input[type=text],input[type=url]{padding:8px 12px;border:1px solid #ccc;border-radius:6px;font-size:14px;width:100%}
 select{padding:8px 12px;border:1px solid #ccc;border-radius:6px;font-size:14px}
@@ -318,6 +320,8 @@ tr.row-highlight td{background:rgba(0,0,0,0.06)!important}
   <button class="btn btn-sm" id="btnDescParejas" onclick="exportarCanvas('parejas')" disabled>📥 PNG Parejas</button>
   <button class="btn btn-sm" id="btnPdfParejas" onclick="exportarPDF('parejas')" disabled>🖨 PDF Parejas</button>
   <button class="btn btn-sm btn-danger" onclick="confirmarNuevaLiga()">🗑 Nueva Liga</button>
+  <button class="btn btn-sm" id="btnFullscreen" onclick="togglePantallaCompleta()"
+    title="Pantalla completa (oculta la barra del navegador). Mismo botón o Esc para salir.">⛶ Pantalla completa</button>
 </footer>
 
 <!-- MODALS -->
@@ -4670,6 +4674,21 @@ function continuarLiga() {
   if ((torneoState.fase === 'parejas' || torneoState.fase === 'done') && !torneoState.sinDobles) { switchTab(3); return; }
   switchTab(2);
 }
+
+// ===================== PANTALLA COMPLETA =====================
+function togglePantallaCompleta() {
+  if (!document.fullscreenElement) {
+    const p = document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+    if (p && p.catch) p.catch(() => alert('Tu navegador no permitió pantalla completa. Prueba con F11.'));
+  } else {
+    document.exitFullscreen();
+  }
+}
+// Mantener el botón en sincronía (también cubre salir con Esc)
+document.addEventListener('fullscreenchange', () => {
+  const btn = document.getElementById('btnFullscreen');
+  if (btn) btn.textContent = document.fullscreenElement ? '🗗 Salir de pantalla completa' : '⛶ Pantalla completa';
+});
 
 // ===================== FOOTER BUTTONS =====================
 function updateFooterBtns() {
