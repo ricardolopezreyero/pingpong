@@ -249,6 +249,7 @@ tr.row-highlight td{background:rgba(0,0,0,0.06)!important}
     </div>
     <div id="playerList" style="max-height:520px;overflow-y:auto;padding-right:4px"></div>
     <div id="playerCount" style="font-size:13px;color:#666;margin-top:8px"></div>
+    <div id="anterioresSection" style="margin-top:14px"></div>
   </div>
 
   <div class="card">
@@ -1840,6 +1841,33 @@ function renderPlayerList() {
   document.getElementById('playerCount').innerHTML =
     `<span style="color:#22C55E;font-weight:bold">${confirmados} confirmados</span>` +
     ` de ${total} jugadores (máx. 30) &nbsp;·&nbsp; <a href="#" onclick="toggleTodos();return false" style="color:#000;font-size:12px">seleccionar todos</a>`;
+
+  // Base histórica: todos los jugadores registrados en cualquier liga que no
+  // están en la lista actual, ordenados por uso más reciente.
+  const secAnteriores = document.getElementById('anterioresSection');
+  if (secAnteriores) {
+    const enLista = new Set(torneoState.jugadores.map(j => j.nombre));
+    const anteriores = Object.entries(ligaData.jugadores || {})
+      .filter(([n]) => !enLista.has(n))
+      .sort((a, b) => (b[1].lastUsed || 0) - (a[1].lastUsed || 0));
+    if (anteriores.length === 0) {
+      secAnteriores.innerHTML = '';
+    } else {
+      secAnteriores.innerHTML = `
+        <button class="btn btn-sm" style="width:100%" onclick="toggleAnteriores()">
+          ${_showAnteriores ? '▴ Ocultar' : '▾ Ver'} jugadores anteriores (${anteriores.length})
+        </button>
+        ${_showAnteriores ? `<div style="margin-top:8px;max-height:300px;overflow-y:auto;border:1px solid #eee;border-radius:8px;padding:4px">
+          ${anteriores.map(([n, d]) => `
+            <div class="player-entry" style="padding:6px 8px">
+              ${avatarEl(n, null)}
+              <span class="player-name" style="flex:1">${n} <span class="elo-badge elo-tip" data-tip="Su récord histórico se conserva al volver a agregarlo">ELO:${d.elo} · ${d.pj || 0} PJ</span></span>
+              <button class="btn btn-sm btn-primary" onclick="agregarDesdeBase('${n.replace(/'/g, "\\'")}')">+ Agregar</button>
+            </div>`).join('')}
+        </div>` : ''}
+      `;
+    }
+  }
   renderEstimador();
 }
 
@@ -1889,8 +1917,28 @@ function addPlayer() {
   if (torneoState.jugadores.length >= 30) { alert('Máximo 30 jugadores.'); return; }
   if (torneoState.jugadores.find(j => j.nombre === nombre)) { alert('Jugador ya existe.'); return; }
   torneoState.jugadores.push({ nombre, foto: null, seFue: false, presente: true });
+  // Registro permanente: queda en la base de jugadores desde que se agrega
+  // (antes solo entraba al terminar su primer partido con ELO).
+  ensurePlayer(nombre);
+  saveLiga();
   input.value = '';
   saveState();
+  renderPlayerList();
+}
+
+// Agrega a la liga actual un jugador de la base histórica (conserva su ELO y récord)
+function agregarDesdeBase(nombre) {
+  if (torneoState.fase !== 'config') { alert('El torneo ya empezó. No puedes agregar jugadores a mitad del fixture.'); return; }
+  if (torneoState.jugadores.length >= 30) { alert('Máximo 30 jugadores.'); return; }
+  if (torneoState.jugadores.find(j => j.nombre === nombre)) return;
+  torneoState.jugadores.push({ nombre, foto: null, seFue: false, presente: true });
+  saveState();
+  renderPlayerList();
+}
+
+let _showAnteriores = false;
+function toggleAnteriores() {
+  _showAnteriores = !_showAnteriores;
   renderPlayerList();
 }
 
@@ -4140,7 +4188,11 @@ function crearNuevaLiga(nombre) {
     fase: 'config', modo: 'simple', jugadores: [], mesas: torneoState.mesas, formato: torneoState.formato,
     partidos: [], partidosParejas: [], parejas: [], activeTab: 0, startDate: null
   };
-  newState.jugadores = cargarJugadoresHistorico();
+  // Precargar los jugadores de la liga actual (la más reciente), con foto y
+  // marcados como presentes. El resto de la base histórica queda accesible en
+  // "Ver jugadores anteriores" dentro de la pestaña Jugadores.
+  const previos = torneoState.jugadores.map(j => ({ nombre: j.nombre, foto: j.foto || null, seFue: false, presente: true }));
+  newState.jugadores = previos.length > 0 ? previos : cargarJugadoresHistorico();
 
   ligasContainer.ligas.push({ id: newId, nombre, createdAt: Date.now(), state: newState });
   ligasContainer.activeId = newId;
@@ -4286,6 +4338,17 @@ function init() {
 
   // Migrate old states: ensure all players have presente field
   torneoState.jugadores.forEach(j => { if (j.presente === undefined) j.presente = true; });
+
+  // Registrar en la base histórica a cualquier jugador de la lista actual que
+  // aún no esté (sin tocar lastUsed de los ya registrados).
+  let baseNueva = false;
+  torneoState.jugadores.forEach(j => {
+    if (!ligaData.jugadores[j.nombre]) {
+      ligaData.jugadores[j.nombre] = { elo: ELO_DEFAULT, pj: 0, pg: 0, racha: 0, lastUsed: Date.now() };
+      baseNueva = true;
+    }
+  });
+  if (baseNueva) saveLiga();
 
   // Default players if none — load from history or use hardcoded defaults
   if (torneoState.jugadores.length === 0) {
