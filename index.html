@@ -415,6 +415,24 @@ tr.row-highlight td{background:rgba(0,0,0,0.06)!important}
   </div>
 </div>
 
+<div id="modalAcomodo" class="modal">
+  <div class="modal-box" style="max-width:560px">
+    <h2 style="margin-bottom:4px">🤝 Revisa y Acomoda las Parejas</h2>
+    <p style="font-size:13px;color:#666;margin-bottom:14px">
+      Sugerencia por ranking (1° con el último, 2° con el penúltimo…).
+      <strong>Arrastra un jugador sobre otro para intercambiarlos</strong>, o toca uno y luego al otro.
+    </p>
+    <div id="acomodoList" style="max-height:52vh;overflow-y:auto;margin-bottom:14px"></div>
+    <div style="display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap">
+      <button class="btn btn-sm" onclick="acomodoRestaurar()" title="Volver a la sugerencia por ranking">↺ Restaurar sugerencia</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn" onclick="volverAJugadoresDesdeAcomodo()">← Jugadores</button>
+        <button class="btn btn-primary" onclick="confirmarAcomodo()">✅ Generar juegos</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="modalReglas" class="modal">
   <div class="modal-box" style="max-width:640px;max-height:86vh;display:flex;flex-direction:column;padding:0;overflow:hidden">
     <div style="padding:20px 24px 14px;border-bottom:1px solid #eee;flex-shrink:0">
@@ -1530,22 +1548,23 @@ function seleccionarComodin(nombre) {
   renderPreParejaModal();
 }
 
+// Flujo de parejas en 3 pasos:
+//   1) modalPreParejas — confirmar QUIÉNES juegan
+//   2) modalAcomodo — revisar/REACOMODAR las parejas sugeridas (arrastrar o tocar)
+//   3) crearParejasYPartidos — generar los juegos
 function confirmarPreParejas() {
   const activos = _preParejaSeleccion.filter(x => x.incluido).map(x => x.nombre);
   if (activos.length < 2) { alert('Necesitas al menos 2 jugadores.'); return; }
   const esImpar = activos.length % 2 !== 0;
   if (esImpar && !_comodinSeleccionado) { alert('Selecciona un comodín.'); return; }
+  if (activos.length < 4) { alert('Se necesitan al menos 4 jugadores (2 parejas) para la fase de dobles.'); return; }
   closeModal('modalPreParejas');
-  generarParejas(activos, _comodinSeleccionado);
+  abrirAcomodoParejas(activos, _comodinSeleccionado);
 }
 
-function generarParejas(jugadoresActivos, comodinNombre = null) {
-  // jugadoresActivos: array de nombres ya filtrados desde la pantalla de confirmación
-  // Si no se pasa (llamada directa), usar los presentes
-  if (!jugadoresActivos) {
-    jugadoresActivos = torneoState.jugadores.filter(j => j.presente === true && !j.seFue).map(j => j.nombre);
-  }
-
+// Sugerencia por ranking: 1° con último, 2° con penúltimo... (trío si hay comodín).
+// Devuelve un array de arrays de nombres, p.ej. [['A','F'],['B','E'],['C','D']].
+function calcularParejasSugeridas(jugadoresActivos, comodinNombre = null) {
   let lista;
   if (torneoState.modo === 'grupos') {
     // Ranking combinado (1°-4° de la fase final + resto por puntos de grupo)
@@ -1568,36 +1587,28 @@ function generarParejas(jugadoresActivos, comodinNombre = null) {
 
   const n = lista.length;
   const parejas = [];
-
   if (n % 2 === 0) {
-    for (let i = 0; i < n / 2; i++) {
-      parejas.push({
-        nombre: `${lista[i]} / ${lista[n-1-i]}`,
-        jugadores: [lista[i], lista[n-1-i]],
-        foto: null
-      });
-    }
+    for (let i = 0; i < n / 2; i++) parejas.push([lista[i], lista[n - 1 - i]]);
   } else {
-    // Último es el comodín (o el del medio si no se eligió)
-    const comodin = lista[lista.length - 1];
-    const resto = lista.slice(0, lista.length - 1);
+    const comodin = lista[n - 1];
+    const resto = lista.slice(0, n - 1);
     const mid = Math.floor(resto.length / 2);
     for (let i = 0; i < Math.floor(resto.length / 2); i++) {
-      if (i === mid - 1) {
-        parejas.push({
-          nombre: `${resto[i]} / ${resto[resto.length-1-i]} (+${comodin})`,
-          jugadores: [resto[i], resto[resto.length-1-i], comodin],
-          foto: null
-        });
-      } else {
-        parejas.push({
-          nombre: `${resto[i]} / ${resto[resto.length-1-i]}`,
-          jugadores: [resto[i], resto[resto.length-1-i]],
-          foto: null
-        });
-      }
+      const par = [resto[i], resto[resto.length - 1 - i]];
+      if (i === mid - 1) par.push(comodin); // trío al centro del ranking
+      parejas.push(par);
     }
   }
+  return parejas;
+}
+
+// Paso 3: convierte los arreglos de nombres en parejas y genera el fixture.
+function crearParejasYPartidos(parejasArrays) {
+  const parejas = parejasArrays.map(arr => ({
+    nombre: arr.length === 3 ? `${arr[0]} / ${arr[1]} (+${arr[2]})` : arr.join(' / '),
+    jugadores: [...arr],
+    foto: null
+  }));
 
   if (parejas.length < 2) {
     alert('Se necesitan al menos 4 jugadores (2 parejas) para la fase de dobles.');
@@ -1619,6 +1630,97 @@ function generarParejas(jugadoresActivos, comodinNombre = null) {
   saveState();
   switchTab(3);
   renderTab(3);
+}
+
+// Atajo directo (sin pantalla de acomodo) — se conserva por compatibilidad
+function generarParejas(jugadoresActivos, comodinNombre = null) {
+  if (!jugadoresActivos) {
+    jugadoresActivos = torneoState.jugadores.filter(j => j.presente === true && !j.seFue).map(j => j.nombre);
+  }
+  crearParejasYPartidos(calcularParejasSugeridas(jugadoresActivos, comodinNombre));
+}
+
+// ===================== PASO 2: ACOMODO DE PAREJAS =====================
+let _acomodoParejas = [];   // array de arrays de nombres, editable
+let _acomodoBase = [];      // sugerencia original (para restaurar)
+let _acomodoSel = null;     // {pi, si} seleccionado por click/tap
+let _acomodoDrag = null;    // {pi, si} en arrastre
+
+function abrirAcomodoParejas(activos, comodin) {
+  _acomodoParejas = calcularParejasSugeridas(activos, comodin);
+  _acomodoBase = JSON.parse(JSON.stringify(_acomodoParejas));
+  _acomodoSel = null;
+  renderAcomodo();
+  document.getElementById('modalAcomodo').classList.add('open');
+}
+
+function renderAcomodo() {
+  const cont = document.getElementById('acomodoList');
+  cont.innerHTML = _acomodoParejas.map((par, pi) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #e5e5e5;border-radius:10px;margin-bottom:8px;background:#fafafa">
+      <span style="font-size:11px;font-weight:800;color:#999;letter-spacing:.5px;min-width:64px">PAREJA ${pi + 1}${par.length === 3 ? ' · TRÍO' : ''}</span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;flex:1">
+        ${par.map((nombre, si) => {
+          const sel = _acomodoSel && _acomodoSel.pi === pi && _acomodoSel.si === si;
+          return `<span draggable="true"
+            ondragstart="acomodoDragStart(${pi},${si})"
+            ondragover="event.preventDefault()"
+            ondrop="acomodoDrop(${pi},${si})"
+            onclick="acomodoClick(${pi},${si})"
+            style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:20px;cursor:grab;user-select:none;
+                   border:2px solid ${sel ? '#2563EB' : '#ccc'};background:${sel ? '#DBEAFE' : '#fff'};
+                   font-weight:700;font-size:14px;transition:.12s">
+            ${avatarEl(nombre, (getPlayerData(nombre) || {}).foto)} ${nombre}
+          </span>`;
+        }).join('')}
+      </div>
+    </div>`).join('');
+}
+
+function acomodoDragStart(pi, si) { _acomodoDrag = { pi, si }; _acomodoSel = null; }
+
+function acomodoDrop(pi, si) {
+  if (!_acomodoDrag) return;
+  _acomodoSwap(_acomodoDrag, { pi, si });
+  _acomodoDrag = null;
+  renderAcomodo();
+}
+
+// Alternativa sin arrastre: toca un jugador (queda marcado) y luego toca al otro
+function acomodoClick(pi, si) {
+  if (_acomodoSel && _acomodoSel.pi === pi && _acomodoSel.si === si) { _acomodoSel = null; renderAcomodo(); return; }
+  if (_acomodoSel) {
+    _acomodoSwap(_acomodoSel, { pi, si });
+    _acomodoSel = null;
+  } else {
+    _acomodoSel = { pi, si };
+  }
+  renderAcomodo();
+}
+
+function _acomodoSwap(a, b) {
+  if (a.pi === b.pi && a.si === b.si) return;
+  const t = _acomodoParejas[a.pi][a.si];
+  _acomodoParejas[a.pi][a.si] = _acomodoParejas[b.pi][b.si];
+  _acomodoParejas[b.pi][b.si] = t;
+}
+
+function acomodoRestaurar() {
+  _acomodoParejas = JSON.parse(JSON.stringify(_acomodoBase));
+  _acomodoSel = null;
+  renderAcomodo();
+}
+
+function confirmarAcomodo() {
+  closeModal('modalAcomodo');
+  crearParejasYPartidos(_acomodoParejas);
+}
+
+// Volver al paso 1 CONSERVANDO la selección de jugadores (no reconstruirla)
+function volverAJugadoresDesdeAcomodo() {
+  closeModal('modalAcomodo');
+  renderPreParejaModal();
+  document.getElementById('modalPreParejas').classList.add('open');
 }
 
 // ===================== RENDER FUNCTIONS =====================
