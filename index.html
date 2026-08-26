@@ -655,7 +655,16 @@ function getActiveLiga() {
 }
 function saveState() {
   const liga = getActiveLiga();
-  if (liga) liga.state = JSON.parse(JSON.stringify(torneoState));
+  if (liga) {
+    const nuevoJson = JSON.stringify(torneoState);
+    // Solo sellar updatedAt cuando el contenido REALMENTE cambió: así ver o
+    // cambiar de liga no le gana conflictos de sincronización a otra compu.
+    if (JSON.stringify(liga.state) !== nuevoJson) {
+      liga.state = JSON.parse(nuevoJson);
+      liga.updatedAt = Date.now();
+      programarSyncNube();
+    }
+  }
   saveLigas();
 }
 function loadState() {
@@ -2254,8 +2263,10 @@ function guardarFoto() {
   ligaData.jugadores[f.nombre].foto = dataURL;
   ligaData.jugadores[f.nombre].fotoTs = Date.now(); // para resolver conflictos entre compus
   saveLiga();
+  // La foto vive SOLO en la base (avatarEl la resuelve). No duplicarla en el
+  // roster de la liga: inflaría el sync de ligas con cada imagen.
   const j = torneoState.jugadores.find(p => p.nombre === f.nombre);
-  if (j) j.foto = dataURL;
+  if (j) j.foto = null;
   saveState();
   if (_currentCredential) syncToCloud();
   closeModal('modalFoto');
@@ -4568,12 +4579,13 @@ function crearNuevaLiga(nombre) {
   // Precargar los jugadores de la liga actual (la más reciente), con foto y
   // marcados como presentes. El resto de la base histórica queda accesible en
   // "Ver jugadores anteriores" dentro de la pestaña Jugadores.
-  const previos = torneoState.jugadores.map(j => ({ nombre: j.nombre, foto: j.foto || null, seFue: false, presente: true }));
+  const previos = torneoState.jugadores.map(j => ({ nombre: j.nombre, foto: null, seFue: false, presente: true }));
   newState.jugadores = previos.length > 0 ? previos : cargarJugadoresHistorico();
 
-  ligasContainer.ligas.push({ id: newId, nombre, createdAt: Date.now(), state: newState });
+  ligasContainer.ligas.push({ id: newId, nombre, createdAt: Date.now(), updatedAt: Date.now(), state: newState });
   ligasContainer.activeId = newId;
   saveLigas();
+  programarSyncNube();
 
   torneoState = newState;
   Object.values(timers).forEach(t => { if (t.interval) clearInterval(t.interval); });
@@ -4636,6 +4648,10 @@ function deleteLiga(id) {
   if (!confirm(`¿Eliminar la liga "${liga ? liga.nombre : ''}"? No se puede deshacer.`)) return;
   const eraActiva = ligasContainer.activeId === id;
   ligasContainer.ligas = ligasContainer.ligas.filter(l => l.id !== id);
+  // Lápida: el borrado también aplica en las otras compus al sincronizar
+  ligasContainer.borradas = ligasContainer.borradas || {};
+  ligasContainer.borradas[id] = Date.now();
+  programarSyncNube();
   if (eraActiva) {
     // La liga borrada era la activa: cambiar a otra sin guardar su estado
     ligasContainer.activeId = ligasContainer.ligas[0].id;
@@ -4746,6 +4762,32 @@ function _migrarDonRicardo() {
   console.info('Migración aplicada: RICARDO → DON RICARDO');
 }
 
+// Mueve las fotos guardadas en rosters de ligas hacia la base de jugadores y
+// las quita del roster. Idempotente; deja los estados de liga ligeros para el sync.
+function _migrarFotosABase() {
+  let cambioBase = false, cambioLigas = false;
+  const procesar = st => {
+    if (!st) return;
+    (st.jugadores || []).forEach(j => {
+      if (!j.foto) return;
+      if (!ligaData.jugadores[j.nombre] || !ligaData.jugadores[j.nombre].foto) {
+        if (!ligaData.jugadores[j.nombre]) {
+          ligaData.jugadores[j.nombre] = { elo: ELO_DEFAULT, pj: 0, pg: 0, racha: 0, lastUsed: Date.now() };
+        }
+        ligaData.jugadores[j.nombre].foto = j.foto;
+        ligaData.jugadores[j.nombre].fotoTs = Date.now();
+        cambioBase = true;
+      }
+      j.foto = null;
+      cambioLigas = true;
+    });
+  };
+  (ligasContainer.ligas || []).forEach(l => procesar(l.state));
+  procesar(torneoState); // el roster activo en memoria también
+  if (cambioBase) saveLiga();
+  if (cambioLigas) saveLigas();
+}
+
 function init() {
   loadLigas();
   loadState();
@@ -4775,6 +4817,10 @@ function init() {
 
   // Migración única: RICARDO pasa a llamarse DON RICARDO en TODOS los datos
   _migrarDonRicardo();
+
+  // Migración: mover fotos que vivían en rosters de ligas hacia la base
+  // (la foto solo debe existir en ligaData; los rosters quedan ligeros)
+  _migrarFotosABase();
 
   // Foto precargada de DON RICARDO (una sola vez, desde fotos/ del repo)
   try {
@@ -4880,6 +4926,10 @@ async function handleGoogleLogin(response) {
 
   try {
     if (WORKER_URL) {
+      // Cargar lo local ANTES de fusionar: si no, la fusión partiría de un
+      // contenedor vacío y podría perder las ligas de esta compu.
+      loadLigas();
+      loadLiga();
       const res = await fetch(WORKER_URL + '/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -4892,6 +4942,7 @@ async function handleGoogleLogin(response) {
           try { localStorage.setItem(USER_CACHE_KEY, JSON.stringify(_currentUser)); } catch {}
         }
         if (data.ligaData) mergeLigaData(data.ligaData);
+        if (data.ligasData) mergeLigas(data.ligasData);
       }
     }
   } catch (e) {
@@ -4918,10 +4969,9 @@ async function sincronizarConNube() {
     });
     if (res.ok) {
       const data = await res.json();
-      if (data.ligaData) {
-        mergeLigaData(data.ligaData);
-        renderAll();
-      }
+      if (data.ligaData) mergeLigaData(data.ligaData);
+      if (data.ligasData) mergeLigas(data.ligasData);
+      renderAll();
     }
   } catch (e) {
     console.warn('No se pudo bajar de la nube; se sube lo local', e);
@@ -4962,13 +5012,99 @@ function mergeLigaData(cloudData) {
   saveLiga();
 }
 
+// ===================== SYNC DE LIGAS COMPLETAS =====================
+// Las ligas (torneos con todos sus partidos) también viajan a la nube.
+// Reglas de fusión, por liga (identificada por su id):
+//  - Solo local → se conserva.  Solo nube → se agrega.
+//  - En ambas → gana la versión con updatedAt más reciente (el sello solo se
+//    pone cuando el contenido cambia de verdad, no al abrir o ver una liga).
+//  - Borrados: deleteLiga deja una lápida {id: ts}; una liga no revive si su
+//    lápida es más reciente que su última edición.
+//  - activeId: siempre el LOCAL (cada compu conserva su vista).
+
+const SYNC_MAX_LIGAS = 30;          // se suben las 30 más recientes
+const SYNC_MAX_BYTES = 1800000;     // margen bajo el límite de D1 (~2MB)
+
+// Payload de ligas para la nube: recorta a las más recientes y respeta el
+// tope de tamaño quitando las más viejas si hace falta.
+function ligasPayload() {
+  const ligas = [...(ligasContainer.ligas || [])]
+    .sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0))
+    .slice(0, SYNC_MAX_LIGAS);
+  let payload = { ligas, borradas: ligasContainer.borradas || {} };
+  while (ligas.length > 1 && JSON.stringify(payload).length > SYNC_MAX_BYTES) {
+    ligas.pop();
+    payload = { ligas, borradas: ligasContainer.borradas || {} };
+  }
+  return payload;
+}
+
+function mergeLigas(cloudLigas) {
+  if (!cloudLigas || !Array.isArray(cloudLigas.ligas)) return;
+
+  // Unificar lápidas de borrado (gana la más reciente por id)
+  const borradas = { ...(cloudLigas.borradas || {}) };
+  Object.entries(ligasContainer.borradas || {}).forEach(([id, ts]) => {
+    if (!borradas[id] || ts > borradas[id]) borradas[id] = ts;
+  });
+
+  const porId = {};
+  ligasContainer.ligas.forEach(l => { porId[l.id] = l; });
+  cloudLigas.ligas.forEach(remota => {
+    const local = porId[remota.id];
+    if (!local) {
+      porId[remota.id] = remota; // liga creada en otra compu
+    } else {
+      const tsLocal = local.updatedAt || local.createdAt || 0;
+      const tsRemota = remota.updatedAt || remota.createdAt || 0;
+      if (tsRemota > tsLocal) porId[remota.id] = remota;
+    }
+  });
+
+  // Aplicar lápidas: eliminar ligas cuyo borrado es posterior a su última edición
+  const resultado = Object.values(porId).filter(l => {
+    const borradaTs = borradas[l.id];
+    if (!borradaTs) return true;
+    return (l.updatedAt || l.createdAt || 0) > borradaTs;
+  });
+  resultado.forEach(l => { if ((l.updatedAt || l.createdAt || 0) > (borradas[l.id] || 0)) delete borradas[l.id]; });
+
+  resultado.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const activaAntes = getActiveLiga();
+  const jsonActivaAntes = activaAntes ? JSON.stringify(activaAntes.state) : null;
+
+  ligasContainer.ligas = resultado;
+  ligasContainer.borradas = borradas;
+  // activeId local se conserva; si su liga desapareció, caer a la primera
+  if (!ligasContainer.ligas.find(l => l.id === ligasContainer.activeId)) {
+    ligasContainer.activeId = ligasContainer.ligas.length ? ligasContainer.ligas[0].id : null;
+  }
+  saveLigas();
+
+  // Si la liga activa cambió de contenido con la fusión, recargarla en pantalla
+  const activaDespues = getActiveLiga();
+  if (activaDespues && (!activaAntes || activaAntes.id !== activaDespues.id ||
+      JSON.stringify(activaDespues.state) !== jsonActivaAntes)) {
+    cargarLigaActiva();
+  }
+}
+
+// Push con debounce: los partidos guardan a cada punto; agrupamos en un solo
+// envío para no bombardear la nube.
+let _syncTimer = null;
+function programarSyncNube() {
+  if (!_currentCredential || !WORKER_URL) return;
+  if (_syncTimer) clearTimeout(_syncTimer);
+  _syncTimer = setTimeout(() => { _syncTimer = null; syncToCloud(); }, 4000);
+}
+
 async function syncToCloud() {
   if (!_currentCredential || !WORKER_URL) return;
   try {
     await fetch(WORKER_URL + '/api/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _currentCredential },
-      body: JSON.stringify({ ligaData })
+      body: JSON.stringify({ ligaData, ligasData: ligasPayload() })
     });
   } catch (e) {
     console.warn('Sync to cloud failed', e);

@@ -23,19 +23,26 @@ async function verifyGoogleToken(token) {
   }
 }
 
+function parseJson(text, fallback) {
+  try { const v = JSON.parse(text); return v == null ? fallback : v; } catch { return fallback; }
+}
+
 async function getOrCreateUser(env, user) {
-  let row = await env.DB.prepare('SELECT liga_data FROM user_data WHERE google_sub = ?')
+  let row = await env.DB.prepare('SELECT liga_data, ligas_data FROM user_data WHERE google_sub = ?')
     .bind(user.sub).first();
 
   if (!row) {
     const empty = JSON.stringify({ jugadores: {}, sesiones: [] });
     await env.DB.prepare(
-      'INSERT INTO user_data (google_sub, email, name, picture, liga_data, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
-    ).bind(user.sub, user.email, user.name, user.picture || '', empty, Date.now()).run();
-    return { jugadores: {}, sesiones: [] };
+      'INSERT INTO user_data (google_sub, email, name, picture, liga_data, ligas_data, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).bind(user.sub, user.email, user.name, user.picture || '', empty, '', Date.now()).run();
+    return { ligaData: { jugadores: {}, sesiones: [] }, ligasData: null };
   }
 
-  try { return JSON.parse(row.liga_data); } catch { return { jugadores: {}, sesiones: [] }; }
+  return {
+    ligaData: parseJson(row.liga_data, { jugadores: {}, sesiones: [] }),
+    ligasData: row.ligas_data ? parseJson(row.ligas_data, null) : null,
+  };
 }
 
 export default {
@@ -44,7 +51,7 @@ export default {
 
     const url = new URL(request.url);
 
-    // POST /api/auth — verifica Google credential, devuelve user + ligaData
+    // POST /api/auth — verifica Google credential, devuelve user + ligaData + ligasData
     if (url.pathname === '/api/auth' && request.method === 'POST') {
       let body;
       try { body = await request.json(); } catch { return json({ error: 'Bad request' }, 400); }
@@ -52,11 +59,13 @@ export default {
       const user = await verifyGoogleToken(body.credential);
       if (!user) return json({ error: 'Token inválido' }, 401);
 
-      const ligaData = await getOrCreateUser(env, user);
-      return json({ ok: true, user, ligaData });
+      const datos = await getOrCreateUser(env, user);
+      return json({ ok: true, user, ligaData: datos.ligaData, ligasData: datos.ligasData });
     }
 
-    // POST /api/sync — guarda ligaData del usuario
+    // POST /api/sync — guarda ligaData (y ligasData si el cliente la manda).
+    // ligasData es opcional para no romper clientes viejos: si no viene,
+    // se conserva la que ya está guardada.
     if (url.pathname === '/api/sync' && request.method === 'POST') {
       const auth = request.headers.get('Authorization') || '';
       if (!auth.startsWith('Bearer ')) return json({ error: 'Sin autenticación' }, 401);
@@ -67,9 +76,15 @@ export default {
       let body;
       try { body = await request.json(); } catch { return json({ error: 'Bad request' }, 400); }
 
-      await env.DB.prepare(
-        'UPDATE user_data SET liga_data = ?, email = ?, name = ?, picture = ?, updated_at = ? WHERE google_sub = ?'
-      ).bind(JSON.stringify(body.ligaData), user.email, user.name, user.picture || '', Date.now(), user.sub).run();
+      if (body.ligasData !== undefined) {
+        await env.DB.prepare(
+          'UPDATE user_data SET liga_data = ?, ligas_data = ?, email = ?, name = ?, picture = ?, updated_at = ? WHERE google_sub = ?'
+        ).bind(JSON.stringify(body.ligaData), JSON.stringify(body.ligasData), user.email, user.name, user.picture || '', Date.now(), user.sub).run();
+      } else {
+        await env.DB.prepare(
+          'UPDATE user_data SET liga_data = ?, email = ?, name = ?, picture = ?, updated_at = ? WHERE google_sub = ?'
+        ).bind(JSON.stringify(body.ligaData), user.email, user.name, user.picture || '', Date.now(), user.sub).run();
+      }
 
       return json({ ok: true });
     }
