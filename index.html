@@ -545,13 +545,22 @@ tr.row-highlight td{background:rgba(0,0,0,0.06)!important}
 </div>
 
 <div id="modalFinIndiv" class="modal">
-  <div class="modal-box" style="max-width:400px;text-align:center">
-    <div style="font-size:48px;line-height:1;margin-bottom:12px">🏆</div>
-    <h2 style="margin-bottom:6px">¡Individual Terminado!</h2>
-    <p id="finIndivMsg" style="color:#666;font-size:14px;margin:0 0 24px"></p>
-    <div style="display:flex;flex-direction:column;gap:10px">
-      <button class="btn btn-primary" onclick="closeModal('modalFinIndiv');mostrarPreParejas()">🤝 Continuar a Dobles</button>
-      <button class="btn" onclick="terminarLigaSinDobles()">✅ Terminar la Liga aquí</button>
+  <div class="modal-box" style="max-width:1020px;width:94%;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start">
+      <div style="flex:0 0 250px;min-width:230px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding-top:16px">
+        <div style="font-size:52px;line-height:1">🏆</div>
+        <h2 style="margin:0">¡Individual Terminado!</h2>
+        <p id="finIndivMsg" style="color:#666;font-size:14px;margin:0 0 14px"></p>
+        <button class="btn btn-primary" style="width:100%" onclick="closeModal('modalFinIndiv');mostrarPreParejas()">🤝 Continuar a Dobles</button>
+        <button class="btn" style="width:100%" onclick="terminarLigaSinDobles()">✅ Terminar la Liga aquí</button>
+      </div>
+      <div style="flex:1;min-width:320px">
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          <button class="btn btn-sm btn-primary" id="finVistaTabla" onclick="setFinVista('tabla')">📊 Tabla en vivo</button>
+          <button class="btn btn-sm" id="finVistaCuadro" onclick="setFinVista('cuadro')">🔲 Cuadro</button>
+        </div>
+        <div id="finIndivTabla" style="max-height:66vh;overflow:auto"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -833,11 +842,13 @@ function calcSaque(juegoActual, pts1, pts2) {
 function startMatchTimer(matchId) {
   if (timers[matchId]) return;
   timers[matchId] = { startTime: Date.now(), elapsed: 0 };
-  timers[matchId].interval = setInterval(() => {
+  const _iv1 = setInterval(() => {
     const t = timers[matchId];
+    if (!t || t.interval !== _iv1) { clearInterval(_iv1); return; } // huérfano: auto-limpiar
     t.elapsed = Math.floor((Date.now() - t.startTime) / 1000);
     updateTimerDisplay(matchId);
   }, 1000);
+  timers[matchId].interval = _iv1;
 }
 
 function stopMatchTimer(matchId) {
@@ -997,10 +1008,13 @@ function reanudarPartido(matchId, tipo) {
   match.estado = 'jugando';
   const elapsed = match.pausedElapsed || 0;
   timers[matchId] = { startTime: Date.now() - elapsed * 1000, elapsed };
-  timers[matchId].interval = setInterval(() => {
-    timers[matchId].elapsed = Math.floor((Date.now() - timers[matchId].startTime) / 1000);
+  const _iv2 = setInterval(() => {
+    const t = timers[matchId];
+    if (!t || t.interval !== _iv2) { clearInterval(_iv2); return; } // huérfano: auto-limpiar
+    t.elapsed = Math.floor((Date.now() - t.startTime) / 1000);
     updateTimerDisplay(matchId);
   }, 1000);
+  timers[matchId].interval = _iv2;
   saveState();
   renderTab(currentTab);
 }
@@ -1329,6 +1343,7 @@ function checkPhaseComplete(partidos, tipo) {
         const standings = getStandings(partidos, torneoState.jugadores.filter(j => j.presente === true && !j.seFue));
         const camp = standings[0];
         document.getElementById('finIndivMsg').textContent = camp ? `Campeón: ${camp.nombre} · ${camp.pg} victorias` : '¡Torneo completado!';
+        renderFinIndivTabla();
         document.getElementById('modalFinIndiv').classList.add('open');
       }, 350);
     } else {
@@ -1348,6 +1363,45 @@ function terminarLigaSinDobles() {
   saveState();
   updateFooterBtns();
   renderAll();
+}
+
+// Tabla final dentro del modal de transición (con switch Tabla ↔ Cuadro),
+// para enseñar cómo quedó ANTES de decidir si siguen los dobles.
+let _finVista = 'tabla';
+function setFinVista(v) {
+  _finVista = v;
+  renderFinIndivTabla();
+}
+function renderFinIndivTabla() {
+  const cont = document.getElementById('finIndivTabla');
+  if (!cont) return;
+  const bT = document.getElementById('finVistaTabla');
+  const bC = document.getElementById('finVistaCuadro');
+  if (bT) bT.className = 'btn btn-sm' + (_finVista === 'tabla' ? ' btn-primary' : '');
+  if (bC) bC.className = 'btn btn-sm' + (_finVista === 'cuadro' ? ' btn-primary' : '');
+
+  if (torneoState.modo === 'grupos') {
+    cont.innerHTML = `
+      <h3 style="margin:0 0 6px;font-size:14px">Grupo 1</h3><div id="finT1"></div>
+      <h3 style="margin:16px 0 6px;font-size:14px">Grupo 2</h3><div id="finT2"></div>`;
+    const g1 = torneoState.partidos.filter(p => p.grupo === 1);
+    const g2 = torneoState.partidos.filter(p => p.grupo === 2);
+    if (_finVista === 'cuadro') {
+      renderFullMatrix('finT1', g1, jugadoresDeGrupo(1), 'individuales', 'GRUPO 1');
+      renderFullMatrix('finT2', g2, jugadoresDeGrupo(2), 'individuales', 'GRUPO 2');
+    } else {
+      renderMiniTabla('finT1', getStandings(g1, jugadoresDeGrupo(1)), 'individuales');
+      renderMiniTabla('finT2', getStandings(g2, jugadoresDeGrupo(2)), 'individuales');
+    }
+  } else {
+    cont.innerHTML = '<div id="finT1"></div>';
+    const jugadores = torneoState.jugadores.filter(j => j.presente === true && !j.seFue);
+    if (_finVista === 'cuadro') {
+      renderFullMatrix('finT1', torneoState.partidos, jugadores.map(j => j.nombre), 'individuales');
+    } else {
+      renderMiniTabla('finT1', getStandings(torneoState.partidos, jugadores), 'individuales');
+    }
+  }
 }
 
 // Archiva la sesión terminada en el historial (campeón individual y de parejas).
@@ -2749,6 +2803,7 @@ function cerrarGrupos() {
   const lug = lugaresFinales();
   setTimeout(() => {
     document.getElementById('finIndivMsg').textContent = lug[1] ? `Campeón: ${lug[1]}` : '¡Fase de grupos completada!';
+    renderFinIndivTabla();
     document.getElementById('modalFinIndiv').classList.add('open');
   }, 350);
 }
@@ -4626,10 +4681,13 @@ function cargarLigaActiva() {
   [...(torneoState.partidos || []), ...(torneoState.partidosParejas || [])].forEach(m => {
     if (m.estado === 'jugando' && m.startTime) {
       timers[m.id] = { startTime: m.startTime, elapsed: Math.floor((Date.now() - m.startTime) / 1000) };
-      timers[m.id].interval = setInterval(() => {
-        timers[m.id].elapsed = Math.floor((Date.now() - timers[m.id].startTime) / 1000);
+      const _iv = setInterval(() => {
+        const t = timers[m.id];
+        if (!t || t.interval !== _iv) { clearInterval(_iv); return; } // huérfano: auto-limpiar
+        t.elapsed = Math.floor((Date.now() - t.startTime) / 1000);
         updateTimerDisplay(m.id);
       }, 1000);
+      timers[m.id].interval = _iv;
     }
   });
   document.getElementById('tab3').disabled = !(torneoState.fase === 'parejas' || torneoState.fase === 'done' || torneoState.fase === 'individuales_done');
@@ -4824,10 +4882,13 @@ function init() {
   [...(torneoState.partidos || []), ...(torneoState.partidosParejas || [])].forEach(m => {
     if (m.estado === 'jugando' && m.startTime) {
       timers[m.id] = { startTime: m.startTime, elapsed: Math.floor((Date.now() - m.startTime) / 1000) };
-      timers[m.id].interval = setInterval(() => {
-        timers[m.id].elapsed = Math.floor((Date.now() - timers[m.id].startTime) / 1000);
+      const _iv = setInterval(() => {
+        const t = timers[m.id];
+        if (!t || t.interval !== _iv) { clearInterval(_iv); return; } // huérfano: auto-limpiar
+        t.elapsed = Math.floor((Date.now() - t.startTime) / 1000);
         updateTimerDisplay(m.id);
       }, 1000);
+      timers[m.id].interval = _iv;
     }
   });
 
