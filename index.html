@@ -243,9 +243,14 @@ tr.row-highlight td{background:rgba(0,0,0,0.06)!important}
 
   <div class="card">
     <h3 style="margin-bottom:12px">Jugadores</h3>
-    <div style="display:flex;gap:8px;margin-bottom:12px">
+    <div style="display:flex;gap:8px;margin-bottom:8px">
       <input type="text" id="nuevoJugador" placeholder="Nombre del jugador" onkeydown="if(event.key==='Enter')addPlayer()">
       <button class="btn" onclick="addPlayer()">Agregar</button>
+    </div>
+    <div style="margin-bottom:12px">
+      <input type="text" id="buscadorJugador" placeholder="🔍 Buscar jugador (liga actual y anteriores)…"
+        oninput="_qJugador=this.value;renderPlayerList()"
+        onkeydown="if(event.key==='Escape'){this.value='';_qJugador='';renderPlayerList();}">
     </div>
     <div id="playerList" style="max-height:520px;overflow-y:auto;padding-right:4px"></div>
     <div id="playerCount" style="font-size:13px;color:#666;margin-top:8px"></div>
@@ -1798,43 +1803,129 @@ function guardarNombre(idx) {
   renderPlayerList();
 }
 
+// ===================== BUSCADOR DE JUGADORES (aproximado) =====================
+let _qJugador = '';
+
+function _normTxt(s) {
+  return (s || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+}
+
+// Distancia de Levenshtein (cadenas cortas: costo despreciable)
+function _lev(a, b) {
+  const m = a.length, n = b.length;
+  if (!m) return n; if (!n) return m;
+  let prev = Array.from({ length: n + 1 }, (_, i) => i);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    prev = cur;
+  }
+  return prev[n];
+}
+
+// Puntaje de coincidencia aproximada: exacto > empieza-con > palabra-empieza-con
+// > contiene > parecido (tolera letras equivocadas). 0 = no coincide.
+function puntajeBusqueda(query, nombre) {
+  const q = _normTxt(query), n = _normTxt(nombre);
+  if (!q || !n) return 0;
+  if (n === q) return 1000;
+  if (n.startsWith(q)) return 900 - (n.length - q.length);
+  const palabras = n.split(/[\s/]+/);
+  if (palabras.some(w => w.startsWith(q))) return 800;
+  const pos = n.indexOf(q);
+  if (pos >= 0) return 700 - pos;
+  // Tolerancia a errores de dedo: comparar contra el nombre completo, su
+  // prefijo del tamaño del query y el inicio de cada palabra.
+  let mejor = 0;
+  const candidatos = [n, n.slice(0, q.length + 1), ...palabras, ...palabras.map(w => w.slice(0, q.length + 1))];
+  candidatos.forEach(c => {
+    if (!c) return;
+    const s = 1 - (_lev(q, c) / Math.max(q.length, c.length));
+    if (s > mejor) mejor = s;
+  });
+  return mejor >= 0.5 ? Math.round(mejor * 600) : 0;
+}
+
+// Fila estándar de un jugador de la liga actual (idx real en torneoState.jugadores)
+function _rosterRowHtml(j, idx) {
+  const elo = getElo(j.nombre);
+  const isNew = !ligaData.jugadores[j.nombre];
+  const eloText = isNew ? `ELO: ${ELO_DEFAULT} (nuevo)` : `ELO: ${elo}`;
+  const presente = j.presente !== false; // default true
+  return `
+    <div class="player-entry" id="playerEntry_${idx}" style="opacity:${presente ? 1 : 0.45}">
+      <button onclick="togglePresente(${idx})" title="${presente ? 'Presente' : 'Ausente'}"
+        style="width:32px;height:32px;border-radius:50%;border:2px solid ${presente ? '#22C55E' : '#ccc'};
+               background:${presente ? '#22C55E' : '#fff'};cursor:pointer;font-size:16px;
+               flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:.15s">
+        ${presente ? '<span style="color:#fff;font-weight:bold;font-size:14px">✓</span>' : ''}
+      </button>
+      ${avatarEl(j.nombre, j.foto)}
+      <span class="player-name" id="playerName_${idx}">${j.nombre} <span class="elo-badge elo-tip" data-tip="Rating histórico. Sube al vencer rivales mejor rankeados. Se acumula entre sesiones.">${eloText}</span></span>
+      <input type="text" id="playerNameInput_${idx}"
+        style="display:none;flex:1;padding:4px 8px;border:2px solid #000;border-radius:6px;font-size:14px;font-weight:600"
+        value="${j.nombre}"
+        onkeydown="if(event.key==='Enter')guardarNombre(${idx});else if(event.key==='Escape')cancelarNombre(${idx})">
+      <button class="btn btn-sm" id="editBtn_${idx}" onclick="editarNombre(${idx})" title="Editar nombre">✏</button>
+      <button class="btn btn-sm" id="saveBtn_${idx}" style="display:none;background:#000;color:#fff" onclick="guardarNombre(${idx})" title="Guardar">✓</button>
+      <button class="btn btn-sm" onclick="openH2HModal('${j.nombre.replace(/'/g,"\\'")}');" title="Historial H2H">📊</button>
+      <button class="btn btn-sm" onclick="toggleFotoInput(${idx})" title="Foto">📷</button>
+      <button class="btn btn-sm btn-danger" onclick="removePlayer(${idx})">✕</button>
+    </div>
+    <div id="fotoInput_${idx}" style="display:none;padding:4px 8px 8px;border:1px solid #eee;border-radius:0 0 6px 6px;margin-top:-6px;margin-bottom:4px">
+      <input type="url" placeholder="URL de foto (se convierte a base64)" id="fotoUrl_${idx}" style="font-size:12px">
+      <button class="btn btn-sm" style="margin-top:4px" onclick="loadFoto(${idx})">Cargar foto</button>
+      <span id="fotoStatus_${idx}" style="font-size:11px;color:#666;margin-left:8px"></span>
+    </div>
+  `;
+}
+
+// Fila de un jugador de la base histórica (no está en la liga actual)
+function _baseRowHtml(n, d) {
+  return `
+    <div class="player-entry" style="padding:6px 8px">
+      ${avatarEl(n, null)}
+      <span class="player-name" style="flex:1">${n} <span class="elo-badge elo-tip" data-tip="Su récord histórico se conserva al volver a agregarlo">ELO:${d.elo} · ${d.pj || 0} PJ</span>
+        <span style="font-size:10px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:1px 7px;margin-left:6px">anterior</span>
+      </span>
+      <button class="btn btn-sm btn-primary" onclick="agregarDesdeBase('${n.replace(/'/g, "\\'")}')">+ Agregar</button>
+    </div>`;
+}
+
 function renderPlayerList() {
   const list = document.getElementById('playerList');
   if (!list) return;
 
-  list.innerHTML = torneoState.jugadores.map((j, idx) => {
-    const elo = getElo(j.nombre);
-    const isNew = !ligaData.jugadores[j.nombre];
-    const eloText = isNew ? `ELO: ${ELO_DEFAULT} (nuevo)` : `ELO: ${elo}`;
-    const presente = j.presente !== false; // default true
+  const secAnteriores = document.getElementById('anterioresSection');
+  const enLista = new Set(torneoState.jugadores.map(j => j.nombre));
+  const q = _qJugador.trim();
 
-    return `
-      <div class="player-entry" id="playerEntry_${idx}" style="opacity:${presente ? 1 : 0.45}">
-        <button onclick="togglePresente(${idx})" title="${presente ? 'Presente' : 'Ausente'}"
-          style="width:32px;height:32px;border-radius:50%;border:2px solid ${presente ? '#22C55E' : '#ccc'};
-                 background:${presente ? '#22C55E' : '#fff'};cursor:pointer;font-size:16px;
-                 flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:.15s">
-          ${presente ? '<span style="color:#fff;font-weight:bold;font-size:14px">✓</span>' : ''}
-        </button>
-        ${avatarEl(j.nombre, j.foto)}
-        <span class="player-name" id="playerName_${idx}">${j.nombre} <span class="elo-badge elo-tip" data-tip="Rating histórico. Sube al vencer rivales mejor rankeados. Se acumula entre sesiones.">${eloText}</span></span>
-        <input type="text" id="playerNameInput_${idx}"
-          style="display:none;flex:1;padding:4px 8px;border:2px solid #000;border-radius:6px;font-size:14px;font-weight:600"
-          value="${j.nombre}"
-          onkeydown="if(event.key==='Enter')guardarNombre(${idx});else if(event.key==='Escape')cancelarNombre(${idx})">
-        <button class="btn btn-sm" id="editBtn_${idx}" onclick="editarNombre(${idx})" title="Editar nombre">✏</button>
-        <button class="btn btn-sm" id="saveBtn_${idx}" style="display:none;background:#000;color:#fff" onclick="guardarNombre(${idx})" title="Guardar">✓</button>
-        <button class="btn btn-sm" onclick="openH2HModal('${j.nombre.replace(/'/g,"\\'")}');" title="Historial H2H">📊</button>
-        <button class="btn btn-sm" onclick="toggleFotoInput(${idx})" title="Foto">📷</button>
-        <button class="btn btn-sm btn-danger" onclick="removePlayer(${idx})">✕</button>
-      </div>
-      <div id="fotoInput_${idx}" style="display:none;padding:4px 8px 8px;border:1px solid #eee;border-radius:0 0 6px 6px;margin-top:-6px;margin-bottom:4px">
-        <input type="url" placeholder="URL de foto (se convierte a base64)" id="fotoUrl_${idx}" style="font-size:12px">
-        <button class="btn btn-sm" style="margin-top:4px" onclick="loadFoto(${idx})">Cargar foto</button>
-        <span id="fotoStatus_${idx}" style="font-size:11px;color:#666;margin-left:8px"></span>
-      </div>
-    `;
-  }).join('');
+  if (q) {
+    // MODO BÚSQUEDA: mezcla liga actual + base histórica, ordenado por mejor coincidencia
+    const resultados = [];
+    torneoState.jugadores.forEach((j, idx) => {
+      const s = puntajeBusqueda(q, j.nombre);
+      if (s > 0) resultados.push({ s, html: _rosterRowHtml(j, idx) });
+    });
+    Object.entries(ligaData.jugadores || {}).forEach(([n, d]) => {
+      if (enLista.has(n)) return;
+      const s = puntajeBusqueda(q, n);
+      if (s > 0) resultados.push({ s, html: _baseRowHtml(n, d) });
+    });
+    resultados.sort((a, b) => b.s - a.s);
+    list.innerHTML = resultados.length
+      ? resultados.map(r => r.html).join('')
+      : '<p style="color:#999;font-style:italic;padding:10px 4px">Sin coincidencias. Puedes agregarlo como nuevo arriba.</p>';
+    document.getElementById('playerCount').innerHTML =
+      `${resultados.length} coincidencia${resultados.length !== 1 ? 's' : ''} &nbsp;·&nbsp; <a href="#" onclick="document.getElementById('buscadorJugador').value='';_qJugador='';renderPlayerList();return false" style="color:#000;font-size:12px">✕ limpiar búsqueda</a>`;
+    if (secAnteriores) secAnteriores.innerHTML = '';
+    renderEstimador();
+    return;
+  }
+
+  list.innerHTML = torneoState.jugadores.map((j, idx) => _rosterRowHtml(j, idx)).join('');
 
   const total = torneoState.jugadores.length;
   const confirmados = torneoState.jugadores.filter(j => j.presente !== false).length;
@@ -1844,9 +1935,7 @@ function renderPlayerList() {
 
   // Base histórica: todos los jugadores registrados en cualquier liga que no
   // están en la lista actual, ordenados por uso más reciente.
-  const secAnteriores = document.getElementById('anterioresSection');
   if (secAnteriores) {
-    const enLista = new Set(torneoState.jugadores.map(j => j.nombre));
     const anteriores = Object.entries(ligaData.jugadores || {})
       .filter(([n]) => !enLista.has(n))
       .sort((a, b) => (b[1].lastUsed || 0) - (a[1].lastUsed || 0));
@@ -1858,12 +1947,7 @@ function renderPlayerList() {
           ${_showAnteriores ? '▴ Ocultar' : '▾ Ver'} jugadores anteriores (${anteriores.length})
         </button>
         ${_showAnteriores ? `<div style="margin-top:8px;max-height:300px;overflow-y:auto;border:1px solid #eee;border-radius:8px;padding:4px">
-          ${anteriores.map(([n, d]) => `
-            <div class="player-entry" style="padding:6px 8px">
-              ${avatarEl(n, null)}
-              <span class="player-name" style="flex:1">${n} <span class="elo-badge elo-tip" data-tip="Su récord histórico se conserva al volver a agregarlo">ELO:${d.elo} · ${d.pj || 0} PJ</span></span>
-              <button class="btn btn-sm btn-primary" onclick="agregarDesdeBase('${n.replace(/'/g, "\\'")}')">+ Agregar</button>
-            </div>`).join('')}
+          ${anteriores.map(([n, d]) => _baseRowHtml(n, d)).join('')}
         </div>` : ''}
       `;
     }
