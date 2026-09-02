@@ -321,15 +321,16 @@ tr.row-highlight td{background:rgba(0,0,0,0.06)!important}
 <!-- Himno del ganador: un solo reproductor compartido, sin loop, sin autoplay -->
 <audio id="audioGanador" src="audio/ganador.mp3" preload="none"></audio>
 
+<!-- Barra inferior contextual: solo los botones de la pestaña activa, en modo
+     ícono (el guardado es automático, no necesita botón). -->
 <footer>
-  <button class="btn btn-sm" onclick="guardarLiga()">💾 Guardar Liga</button>
-  <button class="btn btn-sm" id="btnDescIndiv" onclick="exportarCanvas('individuales')" disabled>📥 PNG Individual</button>
-  <button class="btn btn-sm" id="btnPdfIndiv" onclick="exportarPDF('individuales')" disabled>🖨 PDF Individual</button>
-  <button class="btn btn-sm" id="btnDescParejas" onclick="exportarCanvas('parejas')" disabled>📥 PNG Parejas</button>
-  <button class="btn btn-sm" id="btnPdfParejas" onclick="exportarPDF('parejas')" disabled>🖨 PDF Parejas</button>
-  <button class="btn btn-sm btn-danger" onclick="confirmarNuevaLiga()">🗑 Nueva Liga</button>
+  <button class="btn btn-sm" id="btnDescIndiv" onclick="exportarCanvas('individuales')" title="Descargar PNG de individuales" disabled>📥 PNG</button>
+  <button class="btn btn-sm" id="btnPdfIndiv" onclick="exportarPDF('individuales')" title="Imprimir / PDF de individuales" disabled>🖨 PDF</button>
+  <button class="btn btn-sm" id="btnDescParejas" onclick="exportarCanvas('parejas')" title="Descargar PNG de parejas" disabled>📥 PNG</button>
+  <button class="btn btn-sm" id="btnPdfParejas" onclick="exportarPDF('parejas')" title="Imprimir / PDF de parejas" disabled>🖨 PDF</button>
+  <button class="btn btn-sm btn-danger" id="btnNuevaLiga" onclick="confirmarNuevaLiga()" title="Crear una nueva liga">🗑 Nueva Liga</button>
   <button class="btn btn-sm" id="btnFullscreen" onclick="togglePantallaCompleta()"
-    title="Pantalla completa (oculta la barra del navegador). Mismo botón o Esc para salir.">⛶ Pantalla completa</button>
+    title="Pantalla completa (oculta la barra del navegador). Mismo botón o Esc para salir.">⛶</button>
 </footer>
 
 <!-- MODALS -->
@@ -647,61 +648,245 @@ function panelSwitchHtml() {
   </div>`;
 }
 
+// Suma por jugador, recorriendo TODAS las ligas guardadas (incluida la
+// activa): puntos anotados y segundos jugados en partidos terminados.
+// Se calcula al vuelo — sin estado nuevo ni migraciones, imposible de
+// descuadrar con el sync.
+function statsHistoricas() {
+  const acc = {};
+  const suma = (nombre, pf, seg) => {
+    if (!acc[nombre]) acc[nombre] = { pf: 0, seg: 0 };
+    acc[nombre].pf += pf; acc[nombre].seg += seg;
+  };
+  (ligasContainer.ligas || []).forEach(l => {
+    const st = l.id === ligasContainer.activeId ? torneoState : l.state;
+    if (!st) return;
+    [...(st.partidos || []), ...(st.partidosParejas || [])].forEach(p => {
+      if (p.estado !== 'jugado' && p.estado !== 'walkover') return;
+      const j1 = Array.isArray(p.jugador1) ? p.jugador1 : [p.jugador1];
+      const j2 = Array.isArray(p.jugador2) ? p.jugador2 : [p.jugador2];
+      let pf1 = 0, pf2 = 0;
+      (p.juegos || []).forEach(g => { pf1 += g.pts1 || 0; pf2 += g.pts2 || 0; });
+      const seg = p.duracion || 0;
+      j1.forEach(n => suma(n, pf1, seg));
+      j2.forEach(n => suma(n, pf2, seg));
+    });
+  });
+  return acc;
+}
+
+function _formatDuracion(seg) {
+  if (!seg) return '—';
+  const h = Math.floor(seg / 3600), m = Math.round((seg % 3600) / 60);
+  return h > 0 ? `${h}h ${String(m).padStart(2, '0')}m` : `${m} min`;
+}
+
+// Filas del ranking histórico: base de jugadores (ELO/PJ/PG de siempre) +
+// puntos y tiempo acumulados de las ligas guardadas, del mejor al peor.
+function filasRanking() {
+  const extra = statsHistoricas();
+  return Object.entries(ligaData.jugadores || {})
+    .map(([nombre, d]) => ({
+      nombre,
+      elo: Math.round(d.elo ?? ELO_DEFAULT),
+      pj: d.pj || 0, pg: d.pg || 0,
+      pf: (extra[nombre] || {}).pf || 0,
+      seg: (extra[nombre] || {}).seg || 0
+    }))
+    .sort((a, b) => b.elo - a.elo || b.pg - a.pg || a.nombre.localeCompare(b.nombre));
+}
+
 // Ranking histórico: TODOS los jugadores de la base, del mejor al peor por
 // ELO, con su récord completo a la vista.
 function renderRankingPanel(containerId) {
   const el = document.getElementById(containerId);
   if (!el) return;
-  const filas = Object.entries(ligaData.jugadores || {})
-    .map(([nombre, d]) => ({
-      nombre,
-      elo: Math.round(d.elo ?? ELO_DEFAULT),
-      pj: d.pj || 0, pg: d.pg || 0,
-      racha: d.racha || 0
-    }))
-    .sort((a, b) => b.elo - a.elo || b.pg - a.pg || a.nombre.localeCompare(b.nombre));
+  const filas = filasRanking();
 
+  const medalla = i => i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1;
+  const tinte = i => i === 0 ? 'background:#fffbeb;font-weight:bold'
+                   : i === 1 ? 'background:#f6f6f8'
+                   : i === 2 ? 'background:#fdf4ec' : '';
   el.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-      <h3 style="margin:0;font-size:15px">Ranking histórico</h3>
-      <span style="font-size:11px;color:#999">${filas.length} jugadores</span>
+      <h3 style="margin:0;font-size:15px">🏆 Ranking histórico</h3>
+      <button class="btn btn-sm" onclick="descargarRanking()" title="Descargar el ranking como imagen (para el grupo de WhatsApp)">📥 Descargar</button>
     </div>
-    <div style="font-size:11px;color:#999;margin-bottom:8px">Todos los jugadores, del mejor al peor por ELO (se acumula entre ligas).</div>
+    <div style="font-size:11px;color:#999;margin-bottom:8px">${filas.length} jugadores, del mejor al peor por ELO. Puntos y tiempo suman las ligas guardadas.</div>
     <table style="font-size:12px">
       <thead>
+        <tr>
+          <th colspan="2" style="background:#000;border-bottom:1px solid #222"></th>
+          <th style="background:#1c1c1c;border-bottom:1px solid #222;border-left:3px solid #555;font-size:9px;letter-spacing:.5px;color:#FACC15">⭐</th>
+          <th colspan="3" style="background:#1c1c1c;border-bottom:1px solid #222;border-left:3px solid #555;font-size:9px;letter-spacing:.5px;color:#9CA3AF">🏓 PARTIDOS</th>
+          <th colspan="2" style="background:#1c1c1c;border-bottom:1px solid #222;border-left:3px solid #555;font-size:9px;letter-spacing:.5px;color:#9CA3AF">🎯 TOTALES</th>
+        </tr>
         <tr>
           <th>#</th>
           <th>Jugador</th>
           <th style="border-left:3px solid #555"><span class="elo-tip" style="color:#fff" data-tip="Rating histórico. Sube al vencer rivales mejor rankeados.">ELO</span></th>
-          <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Jugados (histórico)">PJ</span></th>
+          <th style="border-left:3px solid #555"><span class="elo-tip" style="color:#fff" data-tip="Partidos Jugados (histórico)">PJ</span></th>
           <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Ganados (histórico)">PG</span></th>
           <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Perdidos (histórico)">PP</span></th>
-          <th><span class="elo-tip" style="color:#fff" data-tip="Porcentaje de victorias">%</span></th>
-          <th><span class="elo-tip" style="color:#fff" data-tip="Racha actual: victorias (🔥) o derrotas (❄) seguidas">Racha</span></th>
+          <th style="border-left:3px solid #555"><span class="elo-tip" style="color:#fff" data-tip="Total de puntos anotados en las ligas guardadas">Pts</span></th>
+          <th><span class="elo-tip" style="color:#fff" data-tip="Tiempo total jugando en las ligas guardadas">⏱</span></th>
         </tr>
       </thead>
       <tbody>
         ${filas.map((f, i) => `
-          <tr style="${i === 0 ? 'background:#fffbeb;font-weight:bold' : i === 1 ? 'background:#f9f9f9' : ''}">
-            <td style="width:24px;text-align:center;font-weight:bold;color:${i===0?'#D4AF37':i===1?'#A8A9AD':i===2?'#CD7F32':'#666'}">
-              ${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}
-            </td>
+          <tr style="${tinte(i)}">
+            <td style="width:24px;text-align:center;font-weight:bold;color:${i===0?'#D4AF37':i===1?'#A8A9AD':i===2?'#CD7F32':'#666'}">${medalla(i)}</td>
             <td onclick="openH2HModal('${f.nombre.replace(/'/g,"\\'")}');" style="cursor:pointer">
               <div style="display:flex;align-items:center;gap:5px">
                 ${avatarEl(f.nombre, null)}
-                <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px">${f.nombre}</span>
+                <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px">${f.nombre}</span>
               </div>
             </td>
             <td style="text-align:center;border-left:3px solid #e2e2e2;background:rgba(250,204,21,0.07)"><strong>${f.elo}</strong></td>
-            <td style="text-align:center;color:#666">${f.pj}</td>
-            <td style="text-align:center">${f.pg}</td>
-            <td style="text-align:center;color:#999">${f.pj - f.pg}</td>
-            <td style="text-align:center;color:#666">${f.pj ? Math.round(f.pg / f.pj * 100) + '%' : '—'}</td>
-            <td style="text-align:center;white-space:nowrap">${f.racha > 0 ? `🔥 +${f.racha}` : f.racha < 0 ? `<span style="color:#3B82F6">❄ ${f.racha}</span>` : '—'}</td>
+            <td style="text-align:center;color:#666;border-left:3px solid #e2e2e2;background:rgba(0,0,0,0.02)">${f.pj}</td>
+            <td style="text-align:center;background:rgba(0,0,0,0.02)">${f.pg}</td>
+            <td style="text-align:center;color:#999;background:rgba(0,0,0,0.02)">${f.pj - f.pg}</td>
+            <td style="text-align:center;border-left:3px solid #e2e2e2">${f.pf || '—'}</td>
+            <td style="text-align:center;color:#666;white-space:nowrap">${_formatDuracion(f.seg)}</td>
           </tr>
         `).join('')}
       </tbody>
     </table>`;
+}
+
+// Descarga el ranking histórico como PNG (estilo de los exports del torneo),
+// con las fotos de los jugadores incluidas.
+async function descargarRanking() {
+  const filas = filasRanking();
+  if (filas.length === 0) { alert('Todavía no hay jugadores en la base.'); return; }
+
+  // Precargar fotos (dataURLs locales — cargan al instante)
+  const cargar = src => new Promise(res => {
+    if (!src) return res(null);
+    const im = new Image();
+    im.onload = () => res(im); im.onerror = () => res(null);
+    im.src = src;
+  });
+  const fotos = await Promise.all(filas.map(f =>
+    cargar(((ligaData.jugadores || {})[f.nombre] || {}).foto)));
+
+  const W = 1400, PAD = 48;
+  const HEADER_H = 160, TH_H = 56, ROW_H = 64, FOOTER_H = 48;
+  const TOTAL_H = HEADER_H + 36 + TH_H + filas.length * ROW_H + FOOTER_H + 24;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = TOTAL_H;
+  const ctx = canvas.getContext('2d');
+
+  // Fondo + header negro con acento amarillo (mismo lenguaje que los exports)
+  ctx.fillStyle = '#F8F8F8'; ctx.fillRect(0, 0, W, TOTAL_H);
+  ctx.fillStyle = '#0A0A0A'; ctx.fillRect(0, 0, W, HEADER_H);
+  ctx.fillStyle = '#FACC15'; ctx.fillRect(0, HEADER_H - 4, W, 4);
+  ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 52px system-ui, sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText('🏓  PING PONG XTMO', PAD, 70);
+  ctx.font = '22px system-ui, sans-serif'; ctx.fillStyle = '#AAAAAA';
+  ctx.fillText(new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' }), PAD, 108);
+  const badgeW = 340;
+  ctx.fillStyle = '#FACC15';
+  ctx.beginPath(); ctx.roundRect(W - PAD - badgeW, 30, badgeW, 50, 8); ctx.fill();
+  ctx.fillStyle = '#0A0A0A'; ctx.font = 'bold 20px system-ui, sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('RANKING HISTÓRICO', W - PAD - badgeW / 2, 62);
+
+  // Columnas: [#, jugador(flex), ELO, PJ, PG, PP, Pts, Tiempo]
+  const cols = [
+    { t: '#',      w: 70,  a: 'center' },
+    { t: 'JUGADOR',w: 0,   a: 'left'   },
+    { t: 'ELO',    w: 120, a: 'center' },
+    { t: 'PJ',     w: 90,  a: 'center' },
+    { t: 'PG',     w: 90,  a: 'center' },
+    { t: 'PP',     w: 90,  a: 'center' },
+    { t: 'PTS',    w: 110, a: 'center' },
+    { t: 'TIEMPO', w: 150, a: 'center' }
+  ];
+  const fijas = cols.reduce((s, c) => s + c.w, 0);
+  cols[1].w = W - PAD * 2 - fijas;
+
+  // Encabezado de tabla
+  let y = HEADER_H + 36;
+  ctx.fillStyle = '#0A0A0A';
+  ctx.beginPath(); ctx.roundRect(PAD, y, W - PAD * 2, TH_H, [10, 10, 0, 0]); ctx.fill();
+  ctx.font = 'bold 18px system-ui, sans-serif';
+  let x = PAD;
+  cols.forEach(c => {
+    ctx.fillStyle = c.t === 'ELO' ? '#FACC15' : '#FFFFFF';
+    ctx.textAlign = c.a;
+    ctx.fillText(c.t, c.a === 'left' ? x + 16 : x + c.w / 2, y + 36);
+    x += c.w;
+  });
+  y += TH_H;
+
+  const medallas = ['🥇', '🥈', '🥉'];
+  const tintes = ['#FFFBEB', '#F6F6F8', '#FDF4EC'];
+  filas.forEach((f, i) => {
+    // Fila
+    ctx.fillStyle = i < 3 ? tintes[i] : (i % 2 ? '#FFFFFF' : '#FAFAFA');
+    ctx.fillRect(PAD, y, W - PAD * 2, ROW_H);
+    ctx.strokeStyle = '#EEEEEE'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(PAD, y + ROW_H); ctx.lineTo(W - PAD, y + ROW_H); ctx.stroke();
+
+    let cx = PAD;
+    const cy = y + ROW_H / 2;
+    // Posición / medalla
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = i < 3 ? '30px system-ui, sans-serif' : 'bold 22px system-ui, sans-serif';
+    ctx.fillStyle = '#666666';
+    ctx.fillText(i < 3 ? medallas[i] : String(i + 1), cx + cols[0].w / 2, cy);
+    cx += cols[0].w;
+
+    // Avatar (foto recortada en círculo, o inicial)
+    const R = 22, ax = cx + 16 + R, ay = cy;
+    if (fotos[i]) {
+      ctx.save();
+      ctx.beginPath(); ctx.arc(ax, ay, R, 0, Math.PI * 2); ctx.clip();
+      ctx.drawImage(fotos[i], ax - R, ay - R, R * 2, R * 2);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = '#555555';
+      ctx.beginPath(); ctx.arc(ax, ay, R, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 20px system-ui, sans-serif';
+      ctx.fillText(f.nombre.charAt(0), ax, ay + 1);
+    }
+    // Nombre
+    ctx.fillStyle = '#0A0A0A';
+    ctx.font = `${i === 0 ? 'bold ' : ''}22px system-ui, sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.fillText(f.nombre, cx + 16 + R * 2 + 14, cy, cols[1].w - R * 2 - 44);
+    cx += cols[1].w;
+
+    // Números
+    const celdas = [
+      { v: String(f.elo), bold: true, color: '#B45309' },
+      { v: String(f.pj), color: '#666666' },
+      { v: String(f.pg), color: '#16A34A' },
+      { v: String(f.pj - f.pg), color: '#999999' },
+      { v: f.pf ? String(f.pf) : '—', color: '#0A0A0A' },
+      { v: _formatDuracion(f.seg), color: '#666666' }
+    ];
+    celdas.forEach((c, k) => {
+      const col = cols[k + 2];
+      ctx.fillStyle = c.color;
+      ctx.font = `${c.bold ? 'bold ' : ''}22px system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText(c.v, cx + col.w / 2, cy);
+      cx += col.w;
+    });
+    ctx.textBaseline = 'alphabetic';
+    y += ROW_H;
+  });
+
+  // Pie
+  ctx.fillStyle = '#999999'; ctx.font = '16px system-ui, sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('ELO, PJ, PG y PP son históricos · puntos y tiempo suman las ligas guardadas', W / 2, y + 34);
+
+  const date = (() => { const n = new Date(); return n.toISOString().split('T')[0].replace(/-/g, '_'); })();
+  const link = document.createElement('a');
+  link.download = `PPTORNEO_RANKING_${date}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
 }
 
 function setFiltroJugador(nombre) {
@@ -1912,9 +2097,7 @@ function switchTab(idx) {
   document.getElementById(`tabContent${idx}`).classList.add('active');
   currentTab = idx;
   torneoState.activeTab = idx;
-
-
-
+  updateFooterBtns();
   renderTab(idx);
 }
 
@@ -5038,10 +5221,15 @@ document.addEventListener('fullscreenchange', () => {
 function updateFooterBtns() {
   const indivDone = torneoState.fase === 'individuales_done' || torneoState.fase === 'done';
   const parejasDone = torneoState.fase === 'done' && !torneoState.sinDobles;
-  document.getElementById('btnDescIndiv').disabled = !indivDone;
-  document.getElementById('btnPdfIndiv').disabled = !indivDone;
-  document.getElementById('btnDescParejas').disabled = !parejasDone;
-  document.getElementById('btnPdfParejas').disabled = !parejasDone;
+  const bDI = document.getElementById('btnDescIndiv'), bPI = document.getElementById('btnPdfIndiv');
+  const bDP = document.getElementById('btnDescParejas'), bPP = document.getElementById('btnPdfParejas');
+  bDI.disabled = bPI.disabled = !indivDone;
+  bDP.disabled = bPP.disabled = !parejasDone;
+  // Contextual: cada botón solo aparece en la pestaña donde tiene sentido.
+  [bDI, bPI].forEach(b => b.style.display = currentTab === 2 ? '' : 'none');
+  [bDP, bPP].forEach(b => b.style.display = currentTab === 3 ? '' : 'none');
+  const bNL = document.getElementById('btnNuevaLiga');
+  if (bNL) bNL.style.display = currentTab === 0 ? '' : 'none';
 }
 
 // ===================== INIT =====================
