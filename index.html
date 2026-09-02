@@ -484,7 +484,9 @@ tr.row-highlight td{background:rgba(0,0,0,0.06)!important}
         <li><strong>Todos contra todos</strong> (round-robin). Con muchos jugadores se puede <strong>dividir en 2 grupos</strong> para que cada quien juegue la mitad de partidos.</li>
         <li>Juegos a <strong>11 puntos con ventaja mínima de 2</strong> (en 10–10 se sigue hasta sacar 2 de diferencia).</li>
         <li>Formato configurable por sesión: <strong>1 juego</strong>, <strong>mejor de 3</strong> o <strong>mejor de 5</strong>.</li>
-        <li>El orden de los partidos se acomoda para que nadie juegue muchos seguidos.</li>
+        <li><strong>Saque:</strong> cambia <strong>cada 2 puntos</strong>; a partir de 10–10, <strong>cada punto</strong>. El primer saque se sortea (o volea).</li>
+        <li>En partidos a más de un juego se <strong>cambia de lado</strong> al terminar cada juego.</li>
+        <li>El orden de los partidos se acomoda para que nadie juegue muchos seguidos, y cada partido registra su <strong>duración</strong> con cronómetro (se puede pausar).</li>
       </ul>
 
       <h3 style="margin:0 0 8px;font-size:15px">🧮 2 · Puntuación de la tabla (aplica igual en individuales y parejas)</h3>
@@ -531,9 +533,80 @@ tr.row-highlight td{background:rgba(0,0,0,0.06)!important}
         <li>El ELO sirve para sembrar grupos y para el ranking histórico; <strong>el campeón de la sesión lo define la tabla</strong>, no el ELO.</li>
       </ul>
 
+      <h3 style="margin:0 0 8px;font-size:15px">📅 7 · Asistencias y ranking histórico</h3>
+      <ul style="margin:0 0 10px;padding-left:20px;color:#333">
+        <li>Cada martes cuenta: <strong>asistir suma</strong> al ranking histórico y <strong>apuntarse y no llegar, resta</strong>.</li>
+        <li>El ranking ordena por <strong>Puntos de Ranking = ELO + 5 por asistencia − 5 por falta</strong>, con todas las estadísticas a la vista (récord, puntos anotados, tiempo jugado).</li>
+        <li>Está en la pestaña de partidos, junto a la Tabla en vivo y el Cuadro, con su imagen descargable para el grupo.</li>
+      </ul>
+      <div style="background:#f5f5f5;border-radius:8px;padding:10px 14px;margin-bottom:6px;font-size:13px">
+        El detalle completo está en <strong>🏆 ¿Cómo se forma el ranking?</strong> — botón aquí abajo.
+      </div>
+
     </div>
-    <div style="padding:12px 24px 16px;border-top:1px solid #eee;flex-shrink:0">
+    <div style="padding:12px 24px 16px;border-top:1px solid #eee;flex-shrink:0;display:flex;gap:8px">
       <button class="btn" onclick="closeModal('modalReglas')">Cerrar</button>
+      <button class="btn btn-sm" onclick="closeModal('modalReglas');openRankingInfoModal()" style="margin-left:auto">🏆 Ver cómo se forma el ranking →</button>
+    </div>
+  </div>
+</div>
+
+<!-- Documento del ranking: mismo formato que las Reglas, para que se lean como
+     un par. Todo lo que se toma en cuenta, transparente. -->
+<div id="modalRankingInfo" class="modal">
+  <div class="modal-box" style="max-width:640px;max-height:86vh;display:flex;flex-direction:column;padding:0;overflow:hidden">
+    <div style="padding:20px 24px 14px;border-bottom:1px solid #eee;flex-shrink:0">
+      <h2 style="margin:0">🏆 ¿Cómo se forma el ranking?</h2>
+      <p style="font-size:12px;color:#999;margin:4px 0 0">Todo lo que se toma en cuenta, transparente y a la mano.</p>
+    </div>
+    <div style="overflow-y:auto;padding:18px 24px;flex:1;font-size:14px;line-height:1.55">
+
+      <h3 style="margin:0 0 8px;font-size:15px">🧮 1 · El orden: Puntos de Ranking</h3>
+      <div style="background:#f5f5f5;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:13px;text-align:center">
+        <strong>Rank &nbsp;=&nbsp; ELO &nbsp;+&nbsp; 5 × asistencias &nbsp;−&nbsp; 5 × faltas</strong>
+      </div>
+      <ul style="margin:0 0 16px;padding-left:20px;color:#333">
+        <li>El ranking ordena a todos <strong>del mejor al peor por Rank</strong>. La base es lo ganado en la mesa (ELO); la constancia <strong>suma un poco</strong>, sin opacar el juego.</li>
+        <li>Empate en Rank: desempata quien tenga <strong>más partidos ganados</strong> históricos.</li>
+      </ul>
+
+      <h3 style="margin:0 0 8px;font-size:15px">⭐ 2 · ELO — lo ganado en la mesa</h3>
+      <ul style="margin:0 0 16px;padding-left:20px;color:#333">
+        <li>Todos empiezan en <strong>1000</strong> y se acumula <strong>entre sesiones y entre ligas</strong>.</li>
+        <li>Ganar a alguien con <strong>más ELO que tú</strong> da más puntos; perder contra alguien con menos, quita más.</li>
+        <li>Impacto por partido: <strong>individual K=32</strong> · <strong>W.O. K=16</strong> (la mitad) · <strong>parejas: ±12 fijos</strong> por jugador.</li>
+      </ul>
+
+      <h3 style="margin:0 0 8px;font-size:15px">📅 3 · Asistencias y faltas — la constancia</h3>
+      <ul style="margin:0 0 16px;padding-left:20px;color:#333">
+        <li><strong>Asistencia (+5):</strong> jugaste <strong>al menos un partido</strong> en una liga. Presentarse cuenta.</li>
+        <li><strong>Falta (−5):</strong> estabas <strong>en la lista</strong> de una liga y <strong>no jugaste ninguno</strong>. Apuntarse y no llegar, resta.</li>
+        <li>Quien <strong>no estaba en la lista</strong> ese martes no gana ni pierde nada.</li>
+        <li>Las ligas <strong>sin partidos terminados no cuentan</strong> (una liga recién creada no reparte faltas).</li>
+      </ul>
+
+      <h3 style="margin:0 0 8px;font-size:15px">🏓 4 · Récord histórico</h3>
+      <ul style="margin:0 0 16px;padding-left:20px;color:#333">
+        <li><strong>PJ / PG / PP</strong> — partidos jugados, ganados y perdidos <strong>de toda la historia</strong> (individuales y parejas, W.O. incluidos).</li>
+      </ul>
+
+      <h3 style="margin:0 0 8px;font-size:15px">🎯 5 · Totales acumulados</h3>
+      <ul style="margin:0 0 16px;padding-left:20px;color:#333">
+        <li><strong>Pts</strong> — todos los puntos que has anotado, punto por punto, en las ligas guardadas.</li>
+        <li><strong>⏱ Tiempo</strong> — tiempo total que has pasado jugando en la mesa (suma la duración de tus partidos).</li>
+        <li>Asistencias, puntos y tiempo se calculan sobre las <strong>ligas guardadas</strong> en la app (las más recientes); ELO y récord sí son de toda la historia.</li>
+      </ul>
+
+      <h3 style="margin:0 0 8px;font-size:15px">📥 6 · Compartirlo</h3>
+      <ul style="margin:0 0 6px;padding-left:20px;color:#333">
+        <li>El botón <strong>📥 Descargar</strong> genera la imagen del ranking con fotos y medallas, lista para el <strong>grupo de WhatsApp</strong>.</li>
+        <li>Todo se <strong>sincroniza en la nube</strong>: el ranking es el mismo en cualquier computadora.</li>
+      </ul>
+
+    </div>
+    <div style="padding:12px 24px 16px;border-top:1px solid #eee;flex-shrink:0;display:flex;gap:8px">
+      <button class="btn" onclick="closeModal('modalRankingInfo')">Cerrar</button>
+      <button class="btn btn-sm" onclick="closeModal('modalRankingInfo');openReglasModal()" style="margin-left:auto">📜 Ver las reglas de la liga →</button>
     </div>
   </div>
 </div>
@@ -654,13 +727,11 @@ function panelSwitchHtml() {
 // descuadrar con el sync.
 function statsHistoricas() {
   const acc = {};
-  const suma = (nombre, pf, seg) => {
-    if (!acc[nombre]) acc[nombre] = { pf: 0, seg: 0 };
-    acc[nombre].pf += pf; acc[nombre].seg += seg;
-  };
+  const de = nombre => acc[nombre] || (acc[nombre] = { pf: 0, seg: 0, asist: 0, faltas: 0 });
   (ligasContainer.ligas || []).forEach(l => {
     const st = l.id === ligasContainer.activeId ? torneoState : l.state;
     if (!st) return;
+    const jugaron = new Set(); // quiénes tuvieron al menos un partido terminado en esta liga
     [...(st.partidos || []), ...(st.partidosParejas || [])].forEach(p => {
       if (p.estado !== 'jugado' && p.estado !== 'walkover') return;
       const j1 = Array.isArray(p.jugador1) ? p.jugador1 : [p.jugador1];
@@ -668,9 +739,15 @@ function statsHistoricas() {
       let pf1 = 0, pf2 = 0;
       (p.juegos || []).forEach(g => { pf1 += g.pts1 || 0; pf2 += g.pts2 || 0; });
       const seg = p.duracion || 0;
-      j1.forEach(n => suma(n, pf1, seg));
-      j2.forEach(n => suma(n, pf2, seg));
+      j1.forEach(n => { const a = de(n); a.pf += pf1; a.seg += seg; jugaron.add(n); });
+      j2.forEach(n => { const a = de(n); a.pf += pf2; a.seg += seg; jugaron.add(n); });
     });
+    // Asistencia: jugó al menos un partido de esa liga. Falta: estaba en la
+    // lista y no jugó ninguno. Las ligas sin partidos terminados no cuentan
+    // (una liga recién creada no puede repartir faltas).
+    if (jugaron.size === 0) return;
+    jugaron.forEach(n => de(n).asist++);
+    (st.jugadores || []).forEach(j => { if (!jugaron.has(j.nombre)) de(j.nombre).faltas++; });
   });
   return acc;
 }
@@ -683,17 +760,26 @@ function _formatDuracion(seg) {
 
 // Filas del ranking histórico: base de jugadores (ELO/PJ/PG de siempre) +
 // puntos y tiempo acumulados de las ligas guardadas, del mejor al peor.
+// Puntos de Ranking = ELO + 5 por asistencia − 5 por falta: la constancia
+// suma "un poco" sin opacar lo ganado en la mesa.
+const RANK_BONO_ASIST = 5, RANK_CASTIGO_FALTA = 5;
+
 function filasRanking() {
   const extra = statsHistoricas();
   return Object.entries(ligaData.jugadores || {})
-    .map(([nombre, d]) => ({
-      nombre,
-      elo: Math.round(d.elo ?? ELO_DEFAULT),
-      pj: d.pj || 0, pg: d.pg || 0,
-      pf: (extra[nombre] || {}).pf || 0,
-      seg: (extra[nombre] || {}).seg || 0
-    }))
-    .sort((a, b) => b.elo - a.elo || b.pg - a.pg || a.nombre.localeCompare(b.nombre));
+    .map(([nombre, d]) => {
+      const e = extra[nombre] || {};
+      const elo = Math.round(d.elo ?? ELO_DEFAULT);
+      const asist = e.asist || 0, faltas = e.faltas || 0;
+      return {
+        nombre, elo, asist, faltas,
+        score: elo + asist * RANK_BONO_ASIST - faltas * RANK_CASTIGO_FALTA,
+        pj: d.pj || 0, pg: d.pg || 0,
+        pf: e.pf || 0,
+        seg: e.seg || 0
+      };
+    })
+    .sort((a, b) => b.score - a.score || b.pg - a.pg || a.nombre.localeCompare(b.nombre));
 }
 
 // Ranking histórico: TODOS los jugadores de la base, del mejor al peor por
@@ -708,23 +794,31 @@ function renderRankingPanel(containerId) {
                    : i === 1 ? 'background:#f6f6f8'
                    : i === 2 ? 'background:#fdf4ec' : '';
   el.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:6px">
       <h3 style="margin:0;font-size:15px">🏆 Ranking histórico</h3>
-      <button class="btn btn-sm" onclick="descargarRanking()" title="Descargar el ranking como imagen (para el grupo de WhatsApp)">📥 Descargar</button>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-sm" onclick="openRankingInfoModal()" title="Cómo se forma el ranking: todo lo que se toma en cuenta">ℹ️ ¿Cómo se forma?</button>
+        <button class="btn btn-sm" onclick="descargarRanking()" title="Descargar el ranking como imagen (para el grupo de WhatsApp)">📥 Descargar</button>
+      </div>
     </div>
-    <div style="font-size:11px;color:#999;margin-bottom:8px">${filas.length} jugadores, del mejor al peor por ELO. Puntos y tiempo suman las ligas guardadas.</div>
-    <table style="font-size:12px">
+    <div style="font-size:11px;color:#999;margin-bottom:8px">${filas.length} jugadores, del mejor al peor por Puntos de Ranking (ELO ± asistencias).</div>
+    <div style="overflow-x:auto">
+    <table style="font-size:11px">
       <thead>
         <tr>
           <th colspan="2" style="background:#000;border-bottom:1px solid #222"></th>
-          <th style="background:#1c1c1c;border-bottom:1px solid #222;border-left:3px solid #555;font-size:9px;letter-spacing:.5px;color:#FACC15">⭐</th>
+          <th colspan="2" style="background:#1c1c1c;border-bottom:1px solid #222;border-left:3px solid #555;font-size:9px;letter-spacing:.5px;color:#FACC15">⭐ RANKING</th>
+          <th colspan="2" style="background:#1c1c1c;border-bottom:1px solid #222;border-left:3px solid #555;font-size:9px;letter-spacing:.5px;color:#9CA3AF">📅 ASIST.</th>
           <th colspan="3" style="background:#1c1c1c;border-bottom:1px solid #222;border-left:3px solid #555;font-size:9px;letter-spacing:.5px;color:#9CA3AF">🏓 PARTIDOS</th>
           <th colspan="2" style="background:#1c1c1c;border-bottom:1px solid #222;border-left:3px solid #555;font-size:9px;letter-spacing:.5px;color:#9CA3AF">🎯 TOTALES</th>
         </tr>
         <tr>
           <th>#</th>
           <th>Jugador</th>
-          <th style="border-left:3px solid #555"><span class="elo-tip" style="color:#fff" data-tip="Rating histórico. Sube al vencer rivales mejor rankeados.">ELO</span></th>
+          <th style="border-left:3px solid #555"><span class="elo-tip" style="color:#fff" data-tip="Puntos de Ranking = ELO + ${RANK_BONO_ASIST} por asistencia − ${RANK_CASTIGO_FALTA} por falta. Es el orden de esta tabla.">Rank</span></th>
+          <th><span class="elo-tip" style="color:#fff" data-tip="Rating histórico. Sube al vencer rivales mejor rankeados.">ELO</span></th>
+          <th style="border-left:3px solid #555"><span class="elo-tip" style="color:#fff" data-tip="Asistencias: ligas guardadas en las que jugó al menos un partido">As</span></th>
+          <th><span class="elo-tip" style="color:#fff" data-tip="Faltas: ligas en las que estaba en la lista y no jugó ningún partido">Fa</span></th>
           <th style="border-left:3px solid #555"><span class="elo-tip" style="color:#fff" data-tip="Partidos Jugados (histórico)">PJ</span></th>
           <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Ganados (histórico)">PG</span></th>
           <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Perdidos (histórico)">PP</span></th>
@@ -739,10 +833,13 @@ function renderRankingPanel(containerId) {
             <td onclick="openH2HModal('${f.nombre.replace(/'/g,"\\'")}');" style="cursor:pointer">
               <div style="display:flex;align-items:center;gap:5px">
                 ${avatarEl(f.nombre, null)}
-                <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px">${f.nombre}</span>
+                <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px">${f.nombre}</span>
               </div>
             </td>
-            <td style="text-align:center;border-left:3px solid #e2e2e2;background:rgba(250,204,21,0.07)"><strong>${f.elo}</strong></td>
+            <td style="text-align:center;border-left:3px solid #e2e2e2;background:rgba(250,204,21,0.12)"><strong>${f.score}</strong></td>
+            <td style="text-align:center;color:#666;background:rgba(250,204,21,0.05)">${f.elo}</td>
+            <td style="text-align:center;color:#16A34A;border-left:3px solid #e2e2e2">${f.asist || '—'}</td>
+            <td style="text-align:center;color:${f.faltas ? '#DC2626' : '#bbb'}">${f.faltas || '—'}</td>
             <td style="text-align:center;color:#666;border-left:3px solid #e2e2e2;background:rgba(0,0,0,0.02)">${f.pj}</td>
             <td style="text-align:center;background:rgba(0,0,0,0.02)">${f.pg}</td>
             <td style="text-align:center;color:#999;background:rgba(0,0,0,0.02)">${f.pj - f.pg}</td>
@@ -751,7 +848,8 @@ function renderRankingPanel(containerId) {
           </tr>
         `).join('')}
       </tbody>
-    </table>`;
+    </table>
+    </div>`;
 }
 
 // Descarga el ranking histórico como PNG (estilo de los exports del torneo),
@@ -791,16 +889,19 @@ async function descargarRanking() {
   ctx.fillStyle = '#0A0A0A'; ctx.font = 'bold 20px system-ui, sans-serif'; ctx.textAlign = 'center';
   ctx.fillText('RANKING HISTÓRICO', W - PAD - badgeW / 2, 62);
 
-  // Columnas: [#, jugador(flex), ELO, PJ, PG, PP, Pts, Tiempo]
+  // Columnas: [#, jugador(flex), Rank, ELO, As, Fa, PJ, PG, PP, Pts, Tiempo]
   const cols = [
-    { t: '#',      w: 70,  a: 'center' },
+    { t: '#',      w: 64,  a: 'center' },
     { t: 'JUGADOR',w: 0,   a: 'left'   },
-    { t: 'ELO',    w: 120, a: 'center' },
-    { t: 'PJ',     w: 90,  a: 'center' },
-    { t: 'PG',     w: 90,  a: 'center' },
-    { t: 'PP',     w: 90,  a: 'center' },
-    { t: 'PTS',    w: 110, a: 'center' },
-    { t: 'TIEMPO', w: 150, a: 'center' }
+    { t: 'RANK',   w: 104, a: 'center' },
+    { t: 'ELO',    w: 92,  a: 'center' },
+    { t: 'AS',     w: 72,  a: 'center' },
+    { t: 'FA',     w: 72,  a: 'center' },
+    { t: 'PJ',     w: 76,  a: 'center' },
+    { t: 'PG',     w: 76,  a: 'center' },
+    { t: 'PP',     w: 76,  a: 'center' },
+    { t: 'PTS',    w: 92,  a: 'center' },
+    { t: 'TIEMPO', w: 132, a: 'center' }
   ];
   const fijas = cols.reduce((s, c) => s + c.w, 0);
   cols[1].w = W - PAD * 2 - fijas;
@@ -812,7 +913,7 @@ async function descargarRanking() {
   ctx.font = 'bold 18px system-ui, sans-serif';
   let x = PAD;
   cols.forEach(c => {
-    ctx.fillStyle = c.t === 'ELO' ? '#FACC15' : '#FFFFFF';
+    ctx.fillStyle = c.t === 'RANK' ? '#FACC15' : '#FFFFFF';
     ctx.textAlign = c.a;
     ctx.fillText(c.t, c.a === 'left' ? x + 16 : x + c.w / 2, y + 36);
     x += c.w;
@@ -859,7 +960,10 @@ async function descargarRanking() {
 
     // Números
     const celdas = [
-      { v: String(f.elo), bold: true, color: '#B45309' },
+      { v: String(f.score), bold: true, color: '#B45309' },
+      { v: String(f.elo), color: '#666666' },
+      { v: f.asist ? String(f.asist) : '—', color: '#16A34A' },
+      { v: f.faltas ? String(f.faltas) : '—', color: f.faltas ? '#DC2626' : '#BBBBBB' },
       { v: String(f.pj), color: '#666666' },
       { v: String(f.pg), color: '#16A34A' },
       { v: String(f.pj - f.pg), color: '#999999' },
@@ -880,7 +984,7 @@ async function descargarRanking() {
 
   // Pie
   ctx.fillStyle = '#999999'; ctx.font = '16px system-ui, sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText('ELO, PJ, PG y PP son históricos · puntos y tiempo suman las ligas guardadas', W / 2, y + 34);
+  ctx.fillText(`RANK = ELO + ${RANK_BONO_ASIST} por asistencia − ${RANK_CASTIGO_FALTA} por falta · asistencias, puntos y tiempo suman las ligas guardadas`, W / 2, y + 34);
 
   const date = (() => { const n = new Date(); return n.toISOString().split('T')[0].replace(/-/g, '_'); })();
   const link = document.createElement('a');
@@ -4687,6 +4791,10 @@ function openConfirmModal(title, msg, onYes) {
 
 function closeModal(id) {
   document.getElementById(id).classList.remove('open');
+}
+
+function openRankingInfoModal() {
+  document.getElementById('modalRankingInfo').classList.add('open');
 }
 
 function openReglasModal() {
