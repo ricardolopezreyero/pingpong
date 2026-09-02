@@ -18,7 +18,8 @@
 }
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#fff;color:#000;min-height:100vh;padding-bottom:80px}
 /* NAV */
-nav{position:fixed;top:0;left:0;right:0;z-index:100;background:#fff;border-bottom:2px solid #000;display:flex;overflow-x:auto}
+nav{position:fixed;top:0;left:0;right:0;z-index:100;background:#fff;border-bottom:2px solid #000;display:flex;overflow-x:auto;scrollbar-width:none}
+nav::-webkit-scrollbar{display:none}
 nav button{flex:1;min-width:100px;padding:16px 10px;border:none;background:transparent;cursor:pointer;font-size:16px;font-weight:700;white-space:nowrap;border-bottom:4px solid transparent;transition:.2s}
 nav button.active{border-bottom:4px solid #000;background:#f5f5f5}
 nav button:disabled{color:#aaa;cursor:not-allowed}
@@ -76,8 +77,9 @@ button{font-family:inherit}
 .avatar{width:32px;height:32px;border-radius:50%;background:#ccc;display:inline-flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;color:#fff;overflow:hidden;flex-shrink:0}
 .avatar img{width:100%;height:100%;object-fit:cover}
 .avatar-lg{width:48px;height:48px;font-size:20px}
-.avatar-pair{display:inline-flex}
-.avatar-pair .avatar:last-child{margin-left:-10px}
+.avatar-pair{display:inline-flex;flex-shrink:0}
+.avatar-pair .avatar{box-shadow:0 0 0 2px #fff}
+.avatar-pair .avatar:not(:first-child){margin-left:-10px}
 /* TABLE */
 table{width:100%;border-collapse:collapse;font-size:13px}
 th{background:#000;color:#fff;padding:8px;text-align:center;vertical-align:middle}
@@ -251,14 +253,11 @@ tr.row-highlight td{background:rgba(0,0,0,0.06)!important}
 
   <div class="card">
     <h3 style="margin-bottom:12px">Jugadores</h3>
-    <div style="display:flex;gap:8px;margin-bottom:8px">
-      <input type="text" id="nuevoJugador" placeholder="Nombre del jugador" onkeydown="if(event.key==='Enter')addPlayer()">
-      <button class="btn" onclick="addPlayer()">Agregar</button>
-    </div>
-    <div style="margin-bottom:12px">
-      <input type="text" id="buscadorJugador" placeholder="🔍 Buscar jugador (liga actual y anteriores)…"
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input type="text" id="nuevoJugador" placeholder="🔍 Escribe un nombre: busca en la liga y anteriores, o agrégalo nuevo…"
         oninput="_qJugador=this.value;renderPlayerList()"
-        onkeydown="if(event.key==='Escape'){this.value='';_qJugador='';renderPlayerList();}">
+        onkeydown="if(event.key==='Enter')addPlayer();else if(event.key==='Escape'){this.value='';_qJugador='';renderPlayerList();}">
+      <button class="btn" onclick="addPlayer()">Agregar</button>
     </div>
     <div id="playerList" style="max-height:520px;overflow-y:auto;padding-right:4px"></div>
     <div id="playerCount" style="font-size:13px;color:#666;margin-top:8px"></div>
@@ -632,8 +631,9 @@ function toggleDoneOrder() {
   renderTab(currentTab);
 }
 
-// Vista del panel derecho en Individuales/Parejas: 'tabla' (en vivo) | 'cuadro' (matriz)
-let _panelVista = (() => { try { return localStorage.getItem('pptorneo_panelVista') === 'cuadro' ? 'cuadro' : 'tabla'; } catch { return 'tabla'; } })();
+// Vista del panel derecho en Individuales/Parejas:
+// 'tabla' (en vivo) | 'cuadro' (matriz) | 'ranking' (histórico por ELO)
+let _panelVista = (() => { try { const v = localStorage.getItem('pptorneo_panelVista'); return ['cuadro', 'ranking'].includes(v) ? v : 'tabla'; } catch { return 'tabla'; } })();
 function setPanelVista(v) {
   _panelVista = v;
   try { localStorage.setItem('pptorneo_panelVista', v); } catch {}
@@ -643,7 +643,65 @@ function panelSwitchHtml() {
   return `<div style="display:flex;gap:6px;margin-bottom:10px">
     <button class="btn btn-sm${_panelVista === 'tabla' ? ' btn-primary' : ''}" onclick="setPanelVista('tabla')">📊 Tabla en vivo</button>
     <button class="btn btn-sm${_panelVista === 'cuadro' ? ' btn-primary' : ''}" onclick="setPanelVista('cuadro')">🔲 Cuadro</button>
+    <button class="btn btn-sm${_panelVista === 'ranking' ? ' btn-primary' : ''}" onclick="setPanelVista('ranking')">🏆 Ranking</button>
   </div>`;
+}
+
+// Ranking histórico: TODOS los jugadores de la base, del mejor al peor por
+// ELO, con su récord completo a la vista.
+function renderRankingPanel(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const filas = Object.entries(ligaData.jugadores || {})
+    .map(([nombre, d]) => ({
+      nombre,
+      elo: Math.round(d.elo ?? ELO_DEFAULT),
+      pj: d.pj || 0, pg: d.pg || 0,
+      racha: d.racha || 0
+    }))
+    .sort((a, b) => b.elo - a.elo || b.pg - a.pg || a.nombre.localeCompare(b.nombre));
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <h3 style="margin:0;font-size:15px">Ranking histórico</h3>
+      <span style="font-size:11px;color:#999">${filas.length} jugadores</span>
+    </div>
+    <div style="font-size:11px;color:#999;margin-bottom:8px">Todos los jugadores, del mejor al peor por ELO (se acumula entre ligas).</div>
+    <table style="font-size:12px">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Jugador</th>
+          <th style="border-left:3px solid #555"><span class="elo-tip" style="color:#fff" data-tip="Rating histórico. Sube al vencer rivales mejor rankeados.">ELO</span></th>
+          <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Jugados (histórico)">PJ</span></th>
+          <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Ganados (histórico)">PG</span></th>
+          <th><span class="elo-tip" style="color:#fff" data-tip="Partidos Perdidos (histórico)">PP</span></th>
+          <th><span class="elo-tip" style="color:#fff" data-tip="Porcentaje de victorias">%</span></th>
+          <th><span class="elo-tip" style="color:#fff" data-tip="Racha actual: victorias (🔥) o derrotas (❄) seguidas">Racha</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filas.map((f, i) => `
+          <tr style="${i === 0 ? 'background:#fffbeb;font-weight:bold' : i === 1 ? 'background:#f9f9f9' : ''}">
+            <td style="width:24px;text-align:center;font-weight:bold;color:${i===0?'#D4AF37':i===1?'#A8A9AD':i===2?'#CD7F32':'#666'}">
+              ${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}
+            </td>
+            <td onclick="openH2HModal('${f.nombre.replace(/'/g,"\\'")}');" style="cursor:pointer">
+              <div style="display:flex;align-items:center;gap:5px">
+                ${avatarEl(f.nombre, null)}
+                <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px">${f.nombre}</span>
+              </div>
+            </td>
+            <td style="text-align:center;border-left:3px solid #e2e2e2;background:rgba(250,204,21,0.07)"><strong>${f.elo}</strong></td>
+            <td style="text-align:center;color:#666">${f.pj}</td>
+            <td style="text-align:center">${f.pg}</td>
+            <td style="text-align:center;color:#999">${f.pj - f.pg}</td>
+            <td style="text-align:center;color:#666">${f.pj ? Math.round(f.pg / f.pj * 100) + '%' : '—'}</td>
+            <td style="text-align:center;white-space:nowrap">${f.racha > 0 ? `🔥 +${f.racha}` : f.racha < 0 ? `<span style="color:#3B82F6">❄ ${f.racha}</span>` : '—'}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>`;
 }
 
 function setFiltroJugador(nombre) {
@@ -897,6 +955,14 @@ function updateTimerDisplay(matchId) {
 
 // ===================== AVATAR =====================
 function avatarEl(nombre, foto, size = '') {
+  // Nombre de pareja ("A / B" o "A / B (+C)"): un avatar por integrante,
+  // encimados — así se ven las fotos de LOS DOS en cualquier vista.
+  if (!foto && nombre && nombre.includes(' / ')) {
+    const partes = nombre.replace(/\s*\(\+([^)]+)\)\s*$/, ' / $1').split(' / ').map(s => s.trim()).filter(Boolean);
+    if (partes.length >= 2) {
+      return `<span class="avatar-pair">${partes.map(p => avatarEl(p, null, size)).join('')}</span>`;
+    }
+  }
   // Fallback a la foto guardada en la base de jugadores: así la foto aparece
   // en TODAS las vistas (chips, tablas, H2H, parejas) sin tocar cada llamada.
   if (!foto && nombre && ligaData.jugadores && ligaData.jugadores[nombre] && ligaData.jugadores[nombre].foto) {
@@ -2148,11 +2214,21 @@ function renderPlayerList() {
       if (s > 0) resultados.push({ s, html: _baseRowHtml(n, d) });
     });
     resultados.sort((a, b) => b.s - a.s);
-    list.innerHTML = resultados.length
+    // Al final, la opción de darlo de alta como jugador NUEVO (salvo que el
+    // nombre exacto ya exista en la liga o en la base histórica).
+    const nombreNuevo = q.toUpperCase();
+    const yaExiste = enLista.has(nombreNuevo) || (ligaData.jugadores || {})[nombreNuevo];
+    const filaNuevo = yaExiste ? '' : `
+      <div class="player-entry" style="padding:8px;background:#f7fdf9;border:1px dashed #22C55E;border-radius:8px;cursor:pointer" onclick="addPlayer()">
+        <span class="avatar" style="background:#22C55E">＋</span>
+        <span class="player-name" style="flex:1">Agregar <strong>"${nombreNuevo}"</strong> como jugador nuevo</span>
+        <button class="btn btn-sm btn-primary">＋ Nuevo</button>
+      </div>`;
+    list.innerHTML = (resultados.length
       ? resultados.map(r => r.html).join('')
-      : '<p style="color:#999;font-style:italic;padding:10px 4px">Sin coincidencias. Puedes agregarlo como nuevo arriba.</p>';
+      : '<p style="color:#999;font-style:italic;padding:10px 4px">Sin coincidencias en la liga ni en anteriores.</p>') + filaNuevo;
     document.getElementById('playerCount').innerHTML =
-      `${resultados.length} coincidencia${resultados.length !== 1 ? 's' : ''} &nbsp;·&nbsp; <a href="#" onclick="document.getElementById('buscadorJugador').value='';_qJugador='';renderPlayerList();return false" style="color:#000;font-size:12px">✕ limpiar búsqueda</a>`;
+      `${resultados.length} coincidencia${resultados.length !== 1 ? 's' : ''} &nbsp;·&nbsp; <a href="#" onclick="document.getElementById('nuevoJugador').value='';_qJugador='';renderPlayerList();return false" style="color:#000;font-size:12px">✕ limpiar búsqueda</a>`;
     if (secAnteriores) secAnteriores.innerHTML = '';
     renderEstimador();
     return;
@@ -2381,6 +2457,7 @@ function addPlayer() {
   ensurePlayer(nombre);
   saveLiga();
   input.value = '';
+  _qJugador = ''; // salir del modo búsqueda para ver la lista completa
   saveState();
   renderPlayerList();
 }
@@ -2391,6 +2468,9 @@ function agregarDesdeBase(nombre) {
   if (torneoState.jugadores.length >= 30) { alert('Máximo 30 jugadores.'); return; }
   if (torneoState.jugadores.find(j => j.nombre === nombre)) return;
   torneoState.jugadores.push({ nombre, foto: null, seFue: false, presente: true });
+  const inp = document.getElementById('nuevoJugador');
+  if (inp) inp.value = '';
+  _qJugador = ''; // salir del modo búsqueda para ver la lista completa
   saveState();
   renderPlayerList();
 }
@@ -3029,6 +3109,8 @@ function renderIndividuales() {
   renderMatchCards('matchCards', partidos, 'individuales');
   if (_panelVista === 'cuadro') {
     renderFullMatrix('miniTabla', partidos, torneoState.jugadores.filter(j => j.presente === true && !j.seFue).map(j => j.nombre), 'individuales');
+  } else if (_panelVista === 'ranking') {
+    renderRankingPanel('miniTabla');
   } else {
     renderMiniTabla('miniTabla', standings, 'individuales');
   }
@@ -3459,6 +3541,8 @@ function renderParejas() {
   renderMatchCards('parejasMatchCards', partidos, 'parejas');
   if (_panelVista === 'cuadro') {
     renderFullMatrix('parejasTabla', partidos, parejas.map(p => p.nombre), 'parejas');
+  } else if (_panelVista === 'ranking') {
+    renderRankingPanel('parejasTabla');
   } else {
     renderMiniTabla('parejasTabla', standings, 'parejas');
   }
@@ -4623,10 +4707,10 @@ function crearNuevaLiga(nombre) {
     fase: 'config', modo: 'simple', jugadores: [], mesas: torneoState.mesas, formato: torneoState.formato,
     partidos: [], partidosParejas: [], parejas: [], activeTab: 0, startDate: null
   };
-  // Precargar los jugadores de la liga actual (la más reciente), con foto y
-  // marcados como presentes. El resto de la base histórica queda accesible en
-  // "Ver jugadores anteriores" dentro de la pestaña Jugadores.
-  const previos = torneoState.jugadores.map(j => ({ nombre: j.nombre, foto: null, seFue: false, presente: true }));
+  // Precargar los jugadores de la liga actual (la más reciente) SIN marcar:
+  // conforme van llegando al torneo se palomean uno por uno. El resto de la
+  // base histórica queda en "Ver jugadores anteriores" en la pestaña Jugadores.
+  const previos = torneoState.jugadores.map(j => ({ nombre: j.nombre, foto: null, seFue: false, presente: false }));
   newState.jugadores = previos.length > 0 ? previos : cargarJugadoresHistorico();
 
   ligasContainer.ligas.push({ id: newId, nombre, createdAt: Date.now(), updatedAt: Date.now(), state: newState });
