@@ -296,6 +296,7 @@ tr.row-highlight td{background:rgba(0,0,0,0.06)!important}
 
   <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
     <button class="btn btn-primary" onclick="generarFixture()" style="font-size:16px;padding:14px 28px">GENERAR FIXTURE</button>
+    <button class="btn" onclick="irDirectoAParejas()" style="font-size:16px;padding:14px 22px" title="Saltarse los individuales: armar parejas y jugar dobles desde el inicio">🤝 Directo a Parejas</button>
     <button class="btn" onclick="abrirDividirGrupos()" style="font-size:16px;padding:14px 22px" title="Para torneos con muchos jugadores: 2 grupos = la mitad de partidos por persona">👥 Dividir en 2 grupos</button>
     <button class="btn" onclick="cargarDemo()">🎮 Cargar Demo</button>
   </div>
@@ -1815,12 +1816,13 @@ function registrarSesion() {
   if (torneoState.sesionRegistrada) return;
 
   let campeonIndiv = null;
+  const huboIndiv = (torneoState.partidos || []).some(p => p.estado === 'jugado' || p.estado === 'walkover');
   if (torneoState.modo === 'grupos') {
     campeonIndiv = lugaresFinales()[1] || null;
-  } else {
+  } else if (huboIndiv) {
     const st = getStandings(torneoState.partidos, torneoState.jugadores.filter(j => j.presente === true && !j.seFue));
     campeonIndiv = st[0] ? st[0].nombre : null;
-  }
+  } // directo a dobles: sin individuales no hay campeón individual
 
   let campeonParejas = null;
   if (torneoState.partidosParejas && torneoState.partidosParejas.length > 0) {
@@ -1975,6 +1977,22 @@ function getStandings(partidos, jugadoresList) {
 let _preParejaSeleccion = [];
 let _comodinSeleccionado = null;
 
+// Camino directo a dobles: desde la configuración, sin jugar individuales.
+// Usa el mismo flujo de 3 pasos (confirmar quiénes → acomodar → generar);
+// la sugerencia de parejas se hace por ELO histórico al no haber tabla.
+function irDirectoAParejas() {
+  if (torneoState.fase !== 'config') {
+    alert('El torneo ya empezó. Las parejas se generan al terminar individuales.');
+    return;
+  }
+  const presentes = torneoState.jugadores.filter(j => j.presente === true && !j.seFue);
+  if (presentes.length < 4) {
+    alert('Se necesitan al menos 4 jugadores confirmados (2 parejas). Palomea a los que sí van a jugar.');
+    return;
+  }
+  mostrarPreParejas();
+}
+
 function mostrarPreParejas() {
   // Jugadores activos que jugaron el individual
   const participantes = torneoState.jugadores.filter(j => j.presente === true && !j.seFue);
@@ -2072,6 +2090,9 @@ function calcularParejasSugeridas(jugadoresActivos, comodinNombre = null) {
     // Ranking combinado (1°-4° de la fase final + resto por puntos de grupo)
     lista = rankingGeneralGrupos().filter(n => jugadoresActivos.includes(n));
     jugadoresActivos.forEach(n => { if (!lista.includes(n)) lista.push(n); });
+  } else if (!(torneoState.partidos || []).some(p => p.estado === 'jugado' || p.estado === 'walkover')) {
+    // Directo a dobles (sin individuales jugados): ranking por ELO histórico
+    lista = [...jugadoresActivos].sort((a, b) => getElo(b) - getElo(a));
   } else {
     const standings = getStandings(torneoState.partidos,
       torneoState.jugadores.filter(j => jugadoresActivos.includes(j.nombre)));
@@ -2129,6 +2150,8 @@ function crearParejasYPartidos(parejasArrays) {
   });
 
   torneoState.fase = 'parejas';
+  if (!torneoState.startDate) torneoState.startDate = new Date().toISOString().split('T')[0];
+  document.getElementById('tab3').disabled = false; // directo a dobles: la pestaña aún no estaba habilitada
   saveState();
   switchTab(3);
   renderTab(3);
@@ -3636,6 +3659,15 @@ function renderIndividuales() {
     return;
   }
 
+  if (!torneoState.partidos || torneoState.partidos.length === 0) {
+    // Liga que se fue directo a dobles: no hay fase individual
+    container.innerHTML = `<div class="card" style="text-align:center">
+      <p style="color:#666;margin-bottom:0">🤝 Esta liga se fue <strong>directo a dobles</strong> — no hay fase individual.
+      Los partidos están en la pestaña <strong>Parejas</strong>.</p>
+    </div>`;
+    return;
+  }
+
   const partidos = torneoState.partidos;
   const standings = getStandings(partidos, torneoState.jugadores.filter(j => j.presente === true && !j.seFue));
 
@@ -4459,6 +4491,10 @@ function copiarTabla() {
 
 // ===================== EXPORT CANVAS / PDF =====================
 function exportarCanvas(tipo) {
+  const hayPartidos = tipo === 'individuales'
+    ? (torneoState.partidos || []).length > 0
+    : (torneoState.partidosParejas || []).length > 0;
+  if (!hayPartidos) { alert('No hay partidos de ' + tipo + ' en esta liga.'); return; }
   const canvas = generarCanvasExport(tipo);
   const tituloSeccion = tipo === 'individuales' ? 'INDIVIDUALES' : 'PAREJAS';
   const date = (() => { const n = new Date(); return n.toISOString().split('T')[0].replace(/-/g,'_') + '_' + String(n.getHours()).padStart(2,'0') + String(n.getMinutes()).padStart(2,'0'); })();
